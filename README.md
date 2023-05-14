@@ -36,7 +36,7 @@ Not yet, but I plan to add support. Please bear with me - any kind of encouragem
 
 Please suggest additional brokers on the community discord.
 
-If you would like commercially sponsor this project, please contact me through [maystocks.net](https://www.maystocks.net/).
+If you would like to commercially sponsor this project, please contact me through [maystocks.net](https://www.maystocks.net/).
 
 ### Community
 
