@@ -30,7 +30,8 @@ func TestQueryQuote(t *testing.T) {
 	isin := make(chan stockval.AssetData, 1)
 	response := make(chan stockapi.QueryQuoteResponse, 1)
 	requester := NewStockRequester(nil)
-	requester.ReadConfig(newFinnhubConfig(srv.URL))
+	err := requester.ReadConfig(newFinnhubConfig(srv.URL))
+	assert.NoError(t, err)
 	go requester.QueryQuote(context.Background(), isin, response)
 	isin <- stockval.AssetData{Figi: testFigi, Isin: testIsin, Symbol: testSymbol}
 	responseData := <-response
@@ -47,7 +48,8 @@ func TestQueryCandles(t *testing.T) {
 	c := make(chan stockapi.CandlesRequest, 1)
 	response := make(chan stockapi.QueryCandlesResponse, 1)
 	requester := NewStockRequester(nil)
-	requester.ReadConfig(newFinnhubConfig(srv.URL))
+	err := requester.ReadConfig(newFinnhubConfig(srv.URL))
+	assert.NoError(t, err)
 	go requester.QueryCandles(context.Background(), c, response)
 	c <- stockapi.CandlesRequest{
 		Stock:      stockval.AssetData{Figi: testFigi, Isin: testIsin, Symbol: testSymbol},
@@ -118,7 +120,8 @@ func TestQueryCandlesError(t *testing.T) {
 	c := make(chan stockapi.CandlesRequest, 1)
 	response := make(chan stockapi.QueryCandlesResponse, 1)
 	requester := NewStockRequester(nil)
-	requester.ReadConfig(newFinnhubConfig(srv.URL))
+	err := requester.ReadConfig(newFinnhubConfig(srv.URL))
+	assert.NoError(t, err)
 	go requester.QueryCandles(context.Background(), c, response)
 	c <- stockapi.CandlesRequest{
 		Stock:      stockval.AssetData{Figi: testFigi, Isin: testIsin, Symbol: testSymbol},
@@ -144,7 +147,7 @@ func getQuoteResultMock(w http.ResponseWriter, r *http.Request) {
 		"pc": 114.78,
 		"t": 1664222404
 	  }`
-	w.Write([]byte(reply))
+	_, _ = w.Write([]byte(reply)) // ignore errors, test will fail anyway in case Write fails
 }
 
 func getStockCandleResultMock(w http.ResponseWriter, r *http.Request) {
@@ -165,7 +168,7 @@ func getStockCandleResultMock(w http.ResponseWriter, r *http.Request) {
 			"v": [33109,21942,24349,77377,155176]
 		}`
 	}
-	w.Write([]byte(reply))
+	_, _ = w.Write([]byte(reply)) // ignore errors, test will fail anyway in case Write fails
 }
 
 func newFinnhubMock() *httptest.Server {
@@ -182,6 +185,6 @@ func newFinnhubConfig(dataUrl string) config.Config {
 	brokerConfig := appConfig.BrokerConfig[GetBrokerId()]
 	brokerConfig.DataUrl = dataUrl
 	appConfig.BrokerConfig[GetBrokerId()] = brokerConfig
-	c.Unlock(appConfig)
+	_ = c.Unlock(appConfig)
 	return c
 }

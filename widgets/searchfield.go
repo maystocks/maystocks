@@ -4,7 +4,7 @@
 package widgets
 
 import (
-	"image/color"
+	"math"
 	"maystocks/indapi/calc"
 	"maystocks/stockval"
 	"sync"
@@ -40,6 +40,8 @@ type SearchField struct {
 	submittedSearchTextMutex sync.Mutex
 	enteredSearchText        string
 	enteredSearchTextMutex   sync.Mutex
+	firstVisibleIndex        int
+	lastVisibleIndex         int
 }
 
 func NewSearchField(text string) *SearchField {
@@ -180,6 +182,11 @@ func (f *SearchField) HandleKey(name string) {
 			f.selectedIndex--
 			if f.selectedIndex < 0 {
 				f.selectedIndex = len(f.items) - 1
+				f.list.ScrollTo(f.selectedIndex)
+			} else {
+				if f.selectedIndex < f.firstVisibleIndex+2 {
+					f.list.ScrollBy(-1)
+				}
 			}
 			f.updateTextFromSelection()
 		}
@@ -191,6 +198,11 @@ func (f *SearchField) HandleKey(name string) {
 			f.selectedIndex++
 			if f.selectedIndex >= len(f.items) {
 				f.selectedIndex = 0
+				f.list.ScrollTo(f.selectedIndex)
+			} else {
+				if f.selectedIndex > f.lastVisibleIndex-2 {
+					f.list.ScrollBy(1)
+				}
 			}
 			f.updateTextFromSelection()
 		}
@@ -207,12 +219,16 @@ func (f *SearchField) HandleFocus(focus bool) {
 	}
 }
 
-func (f *SearchField) Layout(gtx layout.Context, th *material.Theme) layout.Dimensions {
+func (f *SearchField) Layout(gtx layout.Context, th *material.Theme, pth *PlotTheme) layout.Dimensions {
 	f.handleEvents(gtx)
 	f.registerInputOps(gtx)
 	var nextMinItemSizeX int
 	var textFieldDims layout.Dimensions
 
+	if len(f.items) > 0 {
+		f.firstVisibleIndex = math.MaxInt
+		f.lastVisibleIndex = -1
+	}
 	flexChildren := [2]layout.FlexChild{
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			textFieldDims = f.textField.Layout(gtx, th, "Symbol")
@@ -225,7 +241,13 @@ func (f *SearchField) Layout(gtx layout.Context, th *material.Theme) layout.Dime
 				gtx,
 				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 					return Frame{InnerMargin: 5, BorderWidth: 1, BorderColor: th.Palette.ContrastBg, BackgroundColor: th.Palette.Bg}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						return f.list.List.Layout(gtx, len(f.items), func(gtx layout.Context, index int) layout.Dimensions {
+						return material.List(th, &f.list).Layout(gtx, len(f.items), func(gtx layout.Context, index int) layout.Dimensions {
+							if index < f.firstVisibleIndex {
+								f.firstVisibleIndex = index
+							}
+							if index > f.lastVisibleIndex {
+								f.lastVisibleIndex = index
+							}
 							item := &f.items[index]
 							if item.click.Hovered() && index != f.lastHoveredIndex {
 								f.selectedIndex = index
@@ -253,16 +275,14 @@ func (f *SearchField) Layout(gtx layout.Context, th *material.Theme) layout.Dime
 									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 										label := material.Label(th, unit.Sp(24), item.TitleText)
 										if isSelected {
-											// TODO use theme
-											label.Color = color.NRGBA{R: 100, G: 255, B: 100, A: 255}
+											label.Color = pth.HoverTextColor
 										}
 										return label.Layout(gtx)
 									}),
 									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 										label := material.Label(th, unit.Sp(18), item.DescText)
 										if isSelected {
-											// TODO use theme
-											label.Color = color.NRGBA{R: 100, G: 255, B: 100, A: 255}
+											label.Color = pth.HoverTextColor
 										}
 										return label.Layout(gtx)
 									}))
@@ -271,8 +291,7 @@ func (f *SearchField) Layout(gtx layout.Context, th *material.Theme) layout.Dime
 								}
 								if isSelected {
 									call := macro.Stop()
-									// TODO use theme
-									paint.FillShape(gtx.Ops, color.NRGBA{R: 0x4a, G: 0x4c, B: 0x6b, A: 255}, clip.Rect{Max: dims.Size}.Op())
+									paint.FillShape(gtx.Ops, pth.HoverBgColor, clip.Rect{Max: dims.Size}.Op())
 									call.Add(gtx.Ops)
 								}
 								return dims

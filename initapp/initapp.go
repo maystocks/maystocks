@@ -67,7 +67,10 @@ func (a *InitApp) reloadConfiguration() error {
 		return errors.New("missing openfigi configuration")
 	}
 	figiRequester := openfigi.NewRequester()
-	figiRequester.ReadConfig(a.config)
+	err = figiRequester.ReadConfig(a.config)
+	if err != nil {
+		return err
+	}
 	if alpaca.IsValidConfig(a.config) {
 		r := alpaca.NewStockRequester(figiRequester)
 		err = r.ReadConfig(a.config)
@@ -112,7 +115,10 @@ func (a *InitApp) Run(ctx context.Context) {
 	// Show initialization window only if initial configuration is missing.
 	if err != nil || !a.licenseConfirmed {
 		a.createWindows()
-		a.handleEvents(ctx)
+		err = a.handleEvents(ctx)
+		if err != nil {
+			log.Printf("terminating with error: %v", err)
+		}
 		a.terminate()
 		err = a.reloadConfiguration()
 		if err != nil {
@@ -144,7 +150,7 @@ func (a *InitApp) createWindows() {
 
 func (a *InitApp) handleEvents(ctx context.Context) error {
 	var ops op.Ops
-	th := widgets.NewDefaultMaterialTheme()
+	th := widgets.NewDarkMaterialTheme()
 
 	for e := range a.initWindow.Events() {
 		switch e := e.(type) {

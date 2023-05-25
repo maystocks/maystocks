@@ -11,6 +11,7 @@ import (
 
 type AppConfig struct {
 	LicenseConfirmed bool `yaml:",omitempty"`
+	LightTheme       bool `yaml:",omitempty"`
 	BrokerConfig     map[stockval.BrokerId]BrokerConfig
 	WindowConfig     []WindowConfig
 }

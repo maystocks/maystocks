@@ -52,9 +52,11 @@ type PlotTheme struct {
 	QuoteUpColor                 color.NRGBA
 	QuoteDownColor               color.NRGBA
 	QuoteTextColor               color.NRGBA
+	HoverTextColor               color.NRGBA
+	HoverBgColor                 color.NRGBA
 }
 
-func NewDefaultPlotTheme() *PlotTheme {
+func NewDarkPlotTheme() *PlotTheme {
 	return &PlotTheme{
 		AxesMarginMin:                DpPoint{X: 10, Y: 1},
 		AxesMarginMax:                DpPoint{X: 30, Y: 10},
@@ -84,6 +86,43 @@ func NewDefaultPlotTheme() *PlotTheme {
 		QuoteUpColor:                 color.NRGBA{R: 0, G: 255, B: 0, A: 255},
 		QuoteDownColor:               color.NRGBA{R: 255, G: 0, B: 0, A: 255},
 		QuoteTextColor:               color.NRGBA{R: 0, G: 0, B: 0, A: 255},
+		HoverTextColor:               color.NRGBA{R: 100, G: 255, B: 100, A: 255},
+		HoverBgColor:                 color.NRGBA{R: 74, G: 74, B: 107, A: 255},
+	}
+}
+
+func NewLightPlotTheme() *PlotTheme {
+	return &PlotTheme{
+		AxesMarginMin:                DpPoint{X: 10, Y: 1},
+		AxesMarginMax:                DpPoint{X: 30, Y: 10},
+		SubPlotMarginY:               0,
+		TextMargin:                   DpPoint{X: 7, Y: 7},
+		AxesXfontSize:                17,
+		AxesYfontSize:                17,
+		DefaultPlotGrid:              DpPoint{X: 150, Y: 100},
+		DefaultTimeUnitGrid:          4,
+		AxesColor:                    color.NRGBA{R: 0, G: 0, B: 0, A: 255},
+		GridColor:                    color.NRGBA{R: 230, G: 230, B: 230, A: 255},
+		CandleUnknownColor:           color.NRGBA{R: 150, G: 150, B: 150, A: 255},
+		CandleUpColor:                color.NRGBA{R: 0, G: 255, B: 0, A: 255},
+		CandleDownColor:              color.NRGBA{R: 255, G: 0, B: 0, A: 255},
+		CandleUpBorderColor:          color.NRGBA{R: 0, G: 0, B: 0, A: 255},
+		CandleDownBorderColor:        color.NRGBA{R: 0, G: 0, B: 0, A: 255},
+		UseBorderColorForCandleLines: false,
+		DrawCandleUpBorder:           false,
+		DrawCandleDownBorder:         false,
+		BarUnknownColor:              color.NRGBA{R: 150, G: 150, B: 150, A: 255},
+		BarUpColor:                   color.NRGBA{R: 0, G: 255, B: 0, A: 255},
+		BarDownColor:                 color.NRGBA{R: 255, G: 0, B: 0, A: 255},
+		AxesXtextColor:               color.NRGBA{R: 0, G: 0, B: 0, A: 255},
+		AxesYtextColor:               color.NRGBA{R: 0, G: 0, B: 0, A: 255},
+		QuoteDashColor:               color.NRGBA{R: 0, G: 0, B: 0, A: 255},
+		QuoteDashPattern:             []float32{2, 10},
+		QuoteUpColor:                 color.NRGBA{R: 0, G: 255, B: 0, A: 255},
+		QuoteDownColor:               color.NRGBA{R: 255, G: 0, B: 0, A: 255},
+		QuoteTextColor:               color.NRGBA{R: 0, G: 0, B: 0, A: 255},
+		HoverTextColor:               color.NRGBA{R: 100, G: 255, B: 100, A: 255},
+		HoverBgColor:                 color.NRGBA{R: 174, G: 174, B: 207, A: 255},
 	}
 }
 

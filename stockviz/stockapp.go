@@ -64,6 +64,8 @@ type StockApp struct {
 	configView         *widgets.ConfigView
 	indicatorsView     *widgets.IndicatorsView
 	messageField       *widgets.MessageField
+	plotTheme          *widgets.PlotTheme
+	matTheme           *material.Theme
 	stockRequester     map[stockval.BrokerId]stockapi.StockValueRequester
 	defaultBroker      stockval.BrokerId
 }
@@ -134,6 +136,15 @@ func (a *StockApp) reloadConfiguration(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	// Themes need to be set up first, because other settings might use them.
+	if appConfig.LightTheme {
+		a.matTheme = widgets.NewLightMaterialTheme()
+		a.plotTheme = widgets.NewLightPlotTheme()
+	} else {
+		a.matTheme = widgets.NewDarkMaterialTheme()
+		a.plotTheme = widgets.NewDarkPlotTheme()
+	}
+
 	if a.numUiPlots != appConfig.WindowConfig[0].NumPlots {
 		a.numUiPlots = appConfig.WindowConfig[0].NumPlots
 		// Clear and recreate all plots.
@@ -228,7 +239,7 @@ func (a *StockApp) saveAndReloadConfiguration(ctx context.Context) {
 	if err != nil {
 		log.Printf("error updating configuration: %v", err)
 	}
-	a.reloadConfiguration(ctx)
+	err = a.reloadConfiguration(ctx)
 	if err != nil {
 		log.Printf("error reloading configuration: %v", err)
 	}
@@ -302,7 +313,10 @@ func (a *StockApp) handlePeriodicUpdate() {
 
 func (a *StockApp) Run(ctx context.Context) {
 	a.createWindows()
-	a.handleEvents(ctx)
+	err := a.handleEvents(ctx)
+	if err != nil {
+		log.Printf("terminating with error: %v", err)
+	}
 	a.terminate()
 }
 
@@ -328,7 +342,6 @@ func (a *StockApp) createWindows() {
 
 func (a *StockApp) handleEvents(ctx context.Context) error {
 	var ops op.Ops
-	th := widgets.NewDefaultMaterialTheme()
 
 	for i := range a.windows {
 		for e := range a.windows[i].win.Events() {
@@ -336,18 +349,18 @@ func (a *StockApp) handleEvents(ctx context.Context) error {
 			switch e := e.(type) {
 			case system.FrameEvent:
 				gtx := layout.NewContext(&ops, e)
-				paint.Fill(gtx.Ops, th.Bg)
+				paint.Fill(gtx.Ops, a.matTheme.Bg)
 				switch a.uiState {
 				case StatePlot:
-					a.layoutPlots(ctx, gtx, th)
+					a.layoutPlots(ctx, gtx)
 				case StateSettings:
-					a.configView.Layout(th, gtx)
+					a.configView.Layout(a.matTheme, gtx)
 					if a.configView.ConfirmClicked() {
 						a.saveAndReloadConfiguration(ctx)
 						a.uiState = StatePlot
 					}
 				case StateIndicators:
-					a.indicatorsView.Layout(th, gtx, a.indicatorsIndex)
+					a.indicatorsView.Layout(a.matTheme, gtx, a.indicatorsIndex)
 					if a.indicatorsView.ConfirmClicked() {
 						a.saveAndReloadConfiguration(ctx)
 						a.uiState = StatePlot
@@ -362,7 +375,7 @@ func (a *StockApp) handleEvents(ctx context.Context) error {
 	return nil
 }
 
-func (a *StockApp) layoutPlots(ctx context.Context, gtx layout.Context, th *material.Theme) {
+func (a *StockApp) layoutPlots(ctx context.Context, gtx layout.Context) {
 	a.plotLayouts = a.plotLayouts[:0]
 	if a.numUiPlots.X*a.numUiPlots.Y > 0 { // do not divide by zero even if "kind of" a race condition occurs
 		a.vizMap.Range(
@@ -379,7 +392,7 @@ func (a *StockApp) layoutPlots(ctx context.Context, gtx layout.Context, th *mate
 				a.plotLayouts = append(a.plotLayouts, layout.Flexed(
 					1/float32(a.numUiPlots.X),
 					func(gtx layout.Context) layout.Dimensions {
-						d, refresh := w.Layout(ctx, gtx, th, &priceData)
+						d, refresh := w.Layout(ctx, gtx, a.matTheme, &priceData)
 
 						startTime, endTime, refreshPlot := w.UpdatePlotRange()
 						if refreshPlot {
@@ -442,7 +455,7 @@ func (a *StockApp) layoutPlots(ctx context.Context, gtx layout.Context, th *mate
 			a.widgetStack = append(
 				a.widgetStack,
 				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-					return a.messageField.Layout(string(p)+" API Limit exceeded. No more requests possible for now.", gtx, th)
+					return a.messageField.Layout(string(p)+" API Limit exceeded. No more requests possible for now.", gtx, a.matTheme)
 				}),
 			)
 			break
@@ -489,7 +502,7 @@ func (a *StockApp) AddPlot(ctx context.Context, entry stockval.AssetData, candle
 	if !ok {
 		panic("invalid data broker name")
 	}
-	w := NewPlotView(a.getBrokerList())
+	w := NewPlotView(a.getBrokerList(), a.plotTheme)
 	if uiIndex == 0 {
 		uiIndex = atomic.AddInt32(a.lastUiIndex, 1)
 	}

@@ -17,7 +17,7 @@ import (
 )
 
 func NewTestPlot() *Plot {
-	theme := widgets.NewDefaultPlotTheme()
+	theme := widgets.NewDarkPlotTheme()
 	return NewPlot(theme, candles.CandleOneMinute, stockval.PlotScaling{})
 }
 

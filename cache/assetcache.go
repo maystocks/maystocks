@@ -39,10 +39,12 @@ func NewAssetCache(broker stockval.BrokerId) *AssetCache {
 
 func (c *AssetCache) GetAssetList(ctx context.Context, req func(ctx context.Context) ([]stockval.AssetData, error)) AssetList {
 	// Cache stock symbols for some hours.
-	c.data.PurgeKey(CacheKeyStockSymbols, time.Hour*12)
+	err := c.data.PurgeKey(CacheKeyStockSymbols, time.Hour*12)
+	if err != nil {
+		log.Printf("error purging cache %s, symbol data may be outdated", CacheKeyStockSymbols)
+	}
 	symbols := c.readSymbolsFromCache()
 	if symbols == nil {
-		var err error
 		symbols, err = c.initSymbolCache(ctx, req)
 		if err != nil {
 			log.Printf("error requesting stock symbols: %v", err)
@@ -64,7 +66,10 @@ func (c *AssetCache) readSymbolsFromCache() []stockval.AssetData {
 			return symbols
 		}
 		log.Printf("%s symbol cache contains invalid data", c.broker)
-		c.data.Remove(CacheKeyStockSymbols)
+		err = c.data.Remove(CacheKeyStockSymbols)
+		if err != nil {
+			log.Printf("error deleting cache %s, symbol data may be invalid", CacheKeyStockSymbols)
+		}
 	}
 	return nil
 }

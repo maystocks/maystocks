@@ -57,9 +57,9 @@ type PlotTimeRange struct {
 
 const maxLookupResults = 32
 
-func NewPlotView(brokerList stockval.BrokerList) PlotView {
+func NewPlotView(brokerList stockval.BrokerList, theme *widgets.PlotTheme) PlotView {
 	return PlotView{
-		PlotTheme:            widgets.NewDefaultPlotTheme(),
+		PlotTheme:            theme,
 		brokerList:           brokerList,
 		indicatorsButton:     new(widget.Clickable),
 		contextMenuArea:      new(component.ContextArea),
@@ -224,7 +224,7 @@ func (v *PlotView) Layout(ctx context.Context, gtx layout.Context, th *material.
 					return layout.Flex{}.Layout(gtx,
 						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 							return layout.Inset{Left: 5}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-								return v.searchField.Layout(gtx, th)
+								return v.searchField.Layout(gtx, th, v.Plot.Theme)
 							})
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
