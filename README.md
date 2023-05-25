@@ -40,7 +40,7 @@ If you would like to commercially sponsor this project, please contact me throug
 
 ### Community
 
-[Discord](https://discord.gg/mPbKmGZu)
+[Discord](https://discord.gg/AyXVpnZhv6)
 
 ### License
 
