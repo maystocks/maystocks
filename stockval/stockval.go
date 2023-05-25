@@ -56,8 +56,6 @@ func TruncateDisplayName(n string) string {
 	return displayNameRegex.FindString(n)
 }
 
-type RealtimeDataSubscription int32
-
 type BrokerId string
 
 // For sorting
@@ -66,11 +64,6 @@ type BrokerList []BrokerId
 func (x BrokerList) Len() int           { return len(x) }
 func (x BrokerList) Less(i, j int) bool { return x[i] < x[j] }
 func (x BrokerList) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
-
-const (
-	RealtimeDataSubscribe RealtimeDataSubscription = iota
-	RealtimeDataUnsubscribe
-)
 
 func AtomicSwapFloat64(addr *float64, new float64) float64 {
 	return math.Float64frombits(atomic.SwapUint64((*uint64)(unsafe.Pointer(addr)), math.Float64bits(new)))

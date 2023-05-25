@@ -110,10 +110,21 @@ func (p *PriceData) LoadOrAddCandleResolution(ctx context.Context, candleResolut
 	return c, ok
 }
 
-func (p *PriceData) SetRealtimeChan(realtimeChan chan stockapi.RealtimeTickData, uiUpdater StockUiUpdater) {
+func (p *PriceData) SetRealtimeTradesChan(realtimeChan chan stockapi.RealtimeTickData, uiUpdater StockUiUpdater) {
 	go func() {
 		for data := range realtimeChan {
 			p.AddRealtimePriceData(data.Timestamp, data.Price, data.Volume, data.TradeContext)
+			uiUpdater.Invalidate()
+		}
+		log.Printf("Realtime channel %s was closed.", p.Entry.Figi)
+	}()
+}
+
+func (p *PriceData) SetRealtimeBidAskChan(realtimeChan chan stockapi.RealtimeBidAskData, uiUpdater StockUiUpdater) {
+	go func() {
+		for _ = range realtimeChan {
+			//log.Printf("bid: %v, ask %v", data.BidPrice, data.AskPrice)
+			// TODO handle bid/ask data
 			uiUpdater.Invalidate()
 		}
 		log.Printf("Realtime channel %s was closed.", p.Entry.Figi)

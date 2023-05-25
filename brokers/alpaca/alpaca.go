@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
 	"maystocks/cache"
 	"maystocks/config"
@@ -18,12 +17,10 @@ import (
 	"maystocks/webclient"
 	"net/http"
 	"net/url"
-	"sync"
 	"time"
 
 	"github.com/ericlagergren/decimal"
 	"github.com/gorilla/websocket"
-	"github.com/zhangyunhao116/skipmap"
 )
 
 // We are not using the official alpaca client SDK, because it uses float64.
@@ -31,15 +28,14 @@ import (
 // We directly unmarshal values into decimal.Big.
 type alpacaStockRequester struct {
 	// "golang.org/x/time/rate" does not work well, as alpaca resets every 60 seconds.
-	rateLimiter           *webclient.RateLimiter
-	apiClient             *http.Client
-	realtimeConn          *websocket.Conn
-	tickDataMap           *skipmap.StringMap[chan stockapi.RealtimeTickData]
-	pendingCloseList      []chan stockapi.RealtimeTickData
-	pendingCloseListMutex *sync.Mutex
-	cache                 *cache.AssetCache
-	figiReq               stockapi.SymbolSearchTool
-	config                config.BrokerConfig
+	rateLimiter   *webclient.RateLimiter
+	apiClient     *http.Client
+	realtimeConn  *websocket.Conn
+	tickDataMap   *stockapi.RealtimeChanMap[stockapi.RealtimeTickData]
+	bidAskDataMap *stockapi.RealtimeChanMap[stockapi.RealtimeBidAskData]
+	cache         *cache.AssetCache
+	figiReq       stockapi.SymbolSearchTool
+	config        config.BrokerConfig
 }
 
 type trade struct {
@@ -160,6 +156,7 @@ const (
 const (
 	messageTypeSuccess = "success"
 	messageTypeTrade   = "t"
+	messageTypeQuote   = "q"
 )
 
 const (
@@ -190,12 +187,28 @@ func getCandleResolutionStr(r candles.CandleResolution) string {
 	}
 }
 
-func getRealtimeDataSubscriptionStr(s stockval.RealtimeDataSubscription) string {
+func getRealtimeSubscribeCommand(s stockapi.RealtimeDataSubscription, entry stockval.AssetData) realtimeSubscribeCommand {
 	switch s {
-	case stockval.RealtimeDataSubscribe:
-		return "subscribe"
-	case stockval.RealtimeDataUnsubscribe:
-		return "unsubscribe"
+	case stockapi.RealtimeTradesSubscribe:
+		return realtimeSubscribeCommand{
+			Action: "subscribe",
+			Trades: []string{entry.Symbol},
+		}
+	case stockapi.RealtimeTradesUnsubscribe:
+		return realtimeSubscribeCommand{
+			Action: "unsubscribe",
+			Trades: []string{entry.Symbol},
+		}
+	case stockapi.RealtimeBidAskSubscribe:
+		return realtimeSubscribeCommand{
+			Action: "subscribe",
+			Quotes: []string{entry.Symbol},
+		}
+	case stockapi.RealtimeBidAskUnsubscribe:
+		return realtimeSubscribeCommand{
+			Action: "unsubscribe",
+			Quotes: []string{entry.Symbol},
+		}
 	default:
 		panic("unsupported realtime data subscription mode")
 	}
@@ -223,12 +236,12 @@ func mapSymbolData(s asset) stockval.AssetData {
 
 func NewStockRequester(figiReq stockapi.SymbolSearchTool) stockapi.StockValueRequester {
 	return &alpacaStockRequester{
-		rateLimiter:           webclient.NewRateLimiter(),
-		apiClient:             &http.Client{},
-		tickDataMap:           skipmap.NewString[chan stockapi.RealtimeTickData](),
-		pendingCloseListMutex: new(sync.Mutex),
-		cache:                 cache.NewAssetCache(GetBrokerId()),
-		figiReq:               figiReq,
+		rateLimiter:   webclient.NewRateLimiter(),
+		apiClient:     &http.Client{},
+		tickDataMap:   stockapi.NewRealtimeChanMap[stockapi.RealtimeTickData](),
+		bidAskDataMap: stockapi.NewRealtimeChanMap[stockapi.RealtimeBidAskData](),
+		cache:         cache.NewAssetCache(GetBrokerId()),
+		figiReq:       figiReq,
 	}
 }
 
@@ -236,38 +249,44 @@ func GetBrokerId() stockval.BrokerId {
 	return "alpaca"
 }
 
-func (requester *alpacaStockRequester) RemainingApiLimit() int {
-	return requester.rateLimiter.Remaining()
+func (rq *alpacaStockRequester) GetCapabilities() stockapi.Capabilities {
+	return stockapi.Capabilities{
+		RealtimeBidAsk: true,
+	}
 }
 
-func (requester *alpacaStockRequester) createRequest(cmd string, t requestType) (*http.Request, error) {
+func (rq *alpacaStockRequester) RemainingApiLimit() int {
+	return rq.rateLimiter.Remaining()
+}
+
+func (rq *alpacaStockRequester) createRequest(cmd string, t requestType) (*http.Request, error) {
 	var url string
 	if t == requestTypeTrading {
-		url = requester.config.PaperTradingUrl
+		url = rq.config.PaperTradingUrl
 	} else {
-		url = requester.config.DataUrl
+		url = rq.config.DataUrl
 	}
 	req, err := http.NewRequest("GET", url+cmd, nil)
 	if err != nil {
 		return req, err
 	}
-	req.Header.Add("APCA-API-KEY-ID", requester.config.ApiKey)
-	req.Header.Add("APCA-API-SECRET-KEY", requester.config.ApiSecret)
+	req.Header.Add("APCA-API-KEY-ID", rq.config.ApiKey)
+	req.Header.Add("APCA-API-SECRET-KEY", rq.config.ApiSecret)
 
 	return req, err
 }
 
-func (requester *alpacaStockRequester) runRequest(ctx context.Context, cmd string, query url.Values, t requestType) (*http.Response, error) {
+func (rq *alpacaStockRequester) runRequest(ctx context.Context, cmd string, query url.Values, t requestType) (*http.Response, error) {
 	retry := true
 	var resp *http.Response
 	for retry {
 		// Throttle according to http headers.
-		err := requester.rateLimiter.Wait(ctx)
+		err := rq.rateLimiter.Wait(ctx)
 		if err != nil {
 			return nil, err
 		}
 
-		req, err := requester.createRequest(cmd, t)
+		req, err := rq.createRequest(cmd, t)
 		if err != nil {
 			return nil, err
 		}
@@ -275,11 +294,11 @@ func (requester *alpacaStockRequester) runRequest(ctx context.Context, cmd strin
 			req.URL.RawQuery = query.Encode()
 		}
 
-		resp, err = requester.apiClient.Do(req)
+		resp, err = rq.apiClient.Do(req)
 		if err != nil {
 			return nil, err
 		}
-		retry, err = requester.rateLimiter.HandleResponseHeadersWithWait(ctx, resp)
+		retry, err = rq.rateLimiter.HandleResponseHeadersWithWait(ctx, resp)
 		if err != nil {
 			resp.Body.Close()
 			return nil, err
@@ -291,19 +310,19 @@ func (requester *alpacaStockRequester) runRequest(ctx context.Context, cmd strin
 	return resp, nil
 }
 
-func (requester *alpacaStockRequester) FindAsset(ctx context.Context, entry <-chan stockapi.SearchRequest, response chan<- stockapi.SearchResponse) {
+func (rq *alpacaStockRequester) FindAsset(ctx context.Context, entry <-chan stockapi.SearchRequest, response chan<- stockapi.SearchResponse) {
 	defer close(response)
 
 	// Use sync queries when requesting figi (unbuffered channels).
 	figiRequestChan := make(chan stockapi.SearchRequest)
 	figiResponseChan := make(chan stockapi.SearchResponse)
 	defer close(figiRequestChan)
-	go requester.figiReq.FindAsset(ctx, figiRequestChan, figiResponseChan)
+	go rq.figiReq.FindAsset(ctx, figiRequestChan, figiResponseChan)
 
-	symbols := requester.cache.GetAssetList(ctx, func(ctx context.Context) ([]stockval.AssetData, error) {
+	symbols := rq.cache.GetAssetList(ctx, func(ctx context.Context) ([]stockval.AssetData, error) {
 		query := make(url.Values)
 		query.Add("asset_class", getAssetClassStr(stockval.DefaultExchange))
-		resp, err := requester.runRequest(ctx, "/assets", query, requestTypeTrading)
+		resp, err := rq.runRequest(ctx, "/assets", query, requestTypeTrading)
 		if err != nil {
 			return nil, err
 		}
@@ -333,7 +352,7 @@ func (requester *alpacaStockRequester) FindAsset(ctx context.Context, entry <-ch
 				entry.Text = figiResponseData.Result[0].Symbol
 			}
 		}
-		responseData := requester.queryAsset(ctx, symbols, entry)
+		responseData := rq.queryAsset(ctx, symbols, entry)
 		if responseData.Error == nil {
 			if entry.UnambiguousLookup {
 				// alpaca does not provide figi identifiers for their assets.
@@ -361,7 +380,7 @@ func (requester *alpacaStockRequester) FindAsset(ctx context.Context, entry <-ch
 	}
 }
 
-func (requester *alpacaStockRequester) queryAsset(ctx context.Context, symbols cache.AssetList, entry stockapi.SearchRequest) stockapi.SearchResponse {
+func (rq *alpacaStockRequester) queryAsset(ctx context.Context, symbols cache.AssetList, entry stockapi.SearchRequest) stockapi.SearchResponse {
 	assetList := symbols.Find(entry.Text, entry.MaxNumResults)
 	responseData := stockapi.SearchResponse{
 		SearchRequest: entry,
@@ -373,11 +392,11 @@ func (requester *alpacaStockRequester) queryAsset(ctx context.Context, symbols c
 	return responseData
 }
 
-func (requester *alpacaStockRequester) QueryQuote(ctx context.Context, entry <-chan stockval.AssetData, response chan<- stockapi.QueryQuoteResponse) {
+func (rq *alpacaStockRequester) QueryQuote(ctx context.Context, entry <-chan stockval.AssetData, response chan<- stockapi.QueryQuoteResponse) {
 	defer close(response)
 
 	for entry := range entry {
-		resp := requester.querySymbolQuote(ctx, entry)
+		resp := rq.querySymbolQuote(ctx, entry)
 		if resp.Error != nil {
 			log.Print(resp.Error)
 		}
@@ -386,8 +405,8 @@ func (requester *alpacaStockRequester) QueryQuote(ctx context.Context, entry <-c
 	log.Println("alpaca QueryQuote terminating.")
 }
 
-func (requester *alpacaStockRequester) querySymbolQuote(ctx context.Context, entry stockval.AssetData) stockapi.QueryQuoteResponse {
-	resp, err := requester.runRequest(ctx, "/stocks/"+entry.Symbol+"/snapshot", nil, requestTypeMarketData)
+func (rq *alpacaStockRequester) querySymbolQuote(ctx context.Context, entry stockval.AssetData) stockapi.QueryQuoteResponse {
+	resp, err := rq.runRequest(ctx, "/stocks/"+entry.Symbol+"/snapshot", nil, requestTypeMarketData)
 	if err != nil {
 		return stockapi.QueryQuoteResponse{Figi: entry.Figi, Error: err}
 	}
@@ -406,11 +425,11 @@ func (requester *alpacaStockRequester) querySymbolQuote(ctx context.Context, ent
 	}
 }
 
-func (requester *alpacaStockRequester) QueryCandles(ctx context.Context, request <-chan stockapi.CandlesRequest, response chan<- stockapi.QueryCandlesResponse) {
+func (rq *alpacaStockRequester) QueryCandles(ctx context.Context, request <-chan stockapi.CandlesRequest, response chan<- stockapi.QueryCandlesResponse) {
 	defer close(response)
 
 	for req := range request {
-		resp := requester.querySymbolCandles(ctx, req.Stock, req.Resolution, req.FromTime, req.ToTime)
+		resp := rq.querySymbolCandles(ctx, req.Stock, req.Resolution, req.FromTime, req.ToTime)
 		if resp.Error != nil {
 			log.Print(resp.Error)
 		}
@@ -419,7 +438,7 @@ func (requester *alpacaStockRequester) QueryCandles(ctx context.Context, request
 	log.Println("finnhub QueryCandles terminating.")
 }
 
-func (requester *alpacaStockRequester) querySymbolCandles(ctx context.Context, entry stockval.AssetData, resolution candles.CandleResolution,
+func (rq *alpacaStockRequester) querySymbolCandles(ctx context.Context, entry stockval.AssetData, resolution candles.CandleResolution,
 	fromTime time.Time, toTime time.Time) stockapi.QueryCandlesResponse {
 	// Alpaca is really strange when processing time filters.
 	// An end-filter of "now" will be rejected during after hours, for whatever reason.
@@ -449,7 +468,7 @@ func (requester *alpacaStockRequester) querySymbolCandles(ctx context.Context, e
 		}
 		query.Add("adjustment", "all") // split & dividend adjustment
 		query.Add("limit", "10000")
-		resp, err := requester.runRequest(ctx, "/stocks/"+entry.Symbol+"/bars", query, requestTypeMarketData)
+		resp, err := rq.runRequest(ctx, "/stocks/"+entry.Symbol+"/bars", query, requestTypeMarketData)
 		if err != nil {
 			return stockapi.QueryCandlesResponse{Figi: entry.Figi, Error: err}
 		}
@@ -485,20 +504,20 @@ func (requester *alpacaStockRequester) querySymbolCandles(ctx context.Context, e
 	}
 }
 
-func (requester *alpacaStockRequester) initRealtimeConnection(ctx context.Context) {
-	if requester.realtimeConn != nil {
+func (rq *alpacaStockRequester) initRealtimeConnection(ctx context.Context) {
+	if rq.realtimeConn != nil {
 		log.Fatal("only a single realtime connection is supported")
 	}
 	log.Printf("establishing alpaca realtime connection.")
 	var err error
-	requester.realtimeConn, _, err = websocket.DefaultDialer.DialContext(ctx, requester.config.WsUrl+"/iex", nil)
+	rq.realtimeConn, _, err = websocket.DefaultDialer.DialContext(ctx, rq.config.WsUrl+"/iex", nil)
 	if err != nil {
 		// TODO this should not be a fatal error
 		log.Fatalf("could not connect to alpaca websocket: %v", err)
 	}
 	// wait for "connect" message
 	var initMessage []realtimeMessage
-	err = requester.realtimeConn.ReadJSON(&initMessage)
+	err = rq.realtimeConn.ReadJSON(&initMessage)
 	if err != nil || len(initMessage) != 1 || initMessage[0].Type != messageTypeSuccess || initMessage[0].Msg != messageConnected {
 		// TODO this should not be a fatal error
 		log.Fatalf("could not read alpaca realtime connect message: %v", err)
@@ -506,14 +525,14 @@ func (requester *alpacaStockRequester) initRealtimeConnection(ctx context.Contex
 	// authenticate
 	authCmd := realtimeAuthCommand{
 		Action: "auth",
-		Key:    requester.config.ApiKey,
-		Secret: requester.config.ApiSecret,
+		Key:    rq.config.ApiKey,
+		Secret: rq.config.ApiSecret,
 	}
 	msg, _ := json.Marshal(authCmd)
-	requester.realtimeConn.WriteMessage(websocket.TextMessage, msg)
+	rq.realtimeConn.WriteMessage(websocket.TextMessage, msg)
 	// wait for confirmation
 	var confirmMessage []realtimeMessage
-	err = requester.realtimeConn.ReadJSON(&confirmMessage)
+	err = rq.realtimeConn.ReadJSON(&confirmMessage)
 	if err != nil || len(confirmMessage) != 1 || confirmMessage[0].Type != messageTypeSuccess || confirmMessage[0].Msg != messageAuthenticated {
 		// TODO this should not be a fatal error
 		log.Fatalf("could not authenticate alpaca realtime: %v", err)
@@ -521,152 +540,122 @@ func (requester *alpacaStockRequester) initRealtimeConnection(ctx context.Contex
 
 }
 
-func (requester *alpacaStockRequester) handleRealtimeData() {
+func (rq *alpacaStockRequester) handleRealtimeData() {
 	for {
 		var data []realtimeMessage
-		err := requester.realtimeConn.ReadJSON(&data)
+		err := rq.realtimeConn.ReadJSON(&data)
 
-		requester.pendingCloseListMutex.Lock()
-		for _, c := range requester.pendingCloseList {
-			close(c)
-		}
-		requester.pendingCloseList = nil
-		requester.pendingCloseListMutex.Unlock()
+		rq.tickDataMap.ClearPendingClose()
+		rq.bidAskDataMap.ClearPendingClose()
 
 		if err != nil {
-			requester.tickDataMap.Range(
-				func(k string, tickDataEntry chan stockapi.RealtimeTickData) bool {
-					close(tickDataEntry)
-					return true
-				},
-			)
+			rq.tickDataMap.Clear()
+			rq.bidAskDataMap.Clear()
 			// TODO reconnect
 			log.Print("alpaca realtime connection was terminated.")
 			break
 		}
 		for i := range data {
+			if data[i].Timestamp.Before(time.Now().Add(-time.Minute)) {
+				log.Printf("Symbol %s: Old realtime data received.", data[i].Symbol)
+			}
 			if data[i].Type == messageTypeTrade {
-				tickChan, exists := requester.tickDataMap.Load(data[i].Symbol)
-				if exists {
-					if data[i].Timestamp.Before(time.Now().Add(-time.Minute)) {
-						log.Printf("Symbol %s: Old realtime data received.", data[i].Symbol)
-					}
-					// Default: Normal trade.
-					tradeContext := stockval.NewTradeContext()
-					if data[i].Cond != nil {
-						// consider trade conditions, they are different depending on tape
-						conditionMap, tapeExists := stockval.TapeConditionMap[data[i].Tape]
-						if tapeExists {
-							for _, c := range *data[i].Cond {
-								context, exists := conditionMap[c]
-								if exists {
-									tradeContext = tradeContext.Combine(context)
-								}
+				// Default: Normal trade.
+				tradeContext := stockval.NewTradeContext()
+				if data[i].Cond != nil {
+					// consider trade conditions, they are different depending on tape
+					conditionMap, tapeExists := stockval.TapeConditionMap[data[i].Tape]
+					if tapeExists {
+						for _, c := range *data[i].Cond {
+							context, exists := conditionMap[c]
+							if exists {
+								tradeContext = tradeContext.Combine(context)
 							}
-						} else {
-							log.Printf("alpaca sent unknown tape: %v", data[i].Tape)
 						}
+					} else {
+						log.Printf("alpaca sent unknown tape: %v", data[i].Tape)
 					}
-					tickData := stockapi.RealtimeTickData{
-						Timestamp:    data[i].Timestamp,
-						Price:        data[i].Price,
-						Volume:       data[i].TradeSize,
-						TradeContext: tradeContext,
-					}
-					select {
-					case tickChan <- tickData:
-					// usually if a golang channel is full, we would drop additional data.
-					// but new data is much more important in this case, so instead we
-					// delete old data.
-					// we might steal one entry without necessity in some corner cases,
-					// but in general this code is fine.
-					default:
-						select {
-						// try to remove first entry, non-blocking
-						case <-tickChan:
-							// try again to push the new entry, non-blocking
-							select {
-							case tickChan <- tickData:
-								log.Printf("Symbol %s: Buffer overflow. Old realtime data is being removed.", data[i].Symbol)
-							default:
-								log.Printf("Symbol %s: Buffer overflow. New realtime data is being dropped.", data[i].Symbol)
-							}
-						default:
-							log.Printf("Symbol %s: Buffer cannot be read from or written to.", data[i].Symbol)
-						}
-					}
+				}
+				tickData := stockapi.RealtimeTickData{
+					Timestamp:    data[i].Timestamp,
+					Price:        data[i].Price,
+					Volume:       data[i].TradeSize,
+					TradeContext: tradeContext,
+				}
+				err = rq.tickDataMap.AddNewData(data[i].Symbol, tickData)
+				if err != nil {
+					log.Println(err)
+				}
+			} else if data[i].Type == messageTypeQuote {
+				bidAskData := stockapi.RealtimeBidAskData{
+					Timestamp: data[i].Timestamp,
+					BidPrice:  data[i].BidPrice,
+					BidSize:   data[i].BidSize,
+					AskPrice:  data[i].AskPrice,
+					AskSize:   data[i].AskSize,
+				}
+				err = rq.bidAskDataMap.AddNewData(data[i].Symbol, bidAskData)
+				if err != nil {
+					log.Println(err)
 				}
 			}
 		}
 	}
 }
 
-func (requester *alpacaStockRequester) SubscribeTrades(ctx context.Context, entry <-chan stockapi.SubscribeTradesRequest, response chan<- stockapi.SubscribeTradesResponse) {
+func (rq *alpacaStockRequester) SubscribeData(ctx context.Context, request <-chan stockapi.SubscribeDataRequest, response chan<- stockapi.SubscribeDataResponse) {
 	defer close(response)
-	for entry := range entry {
+	for entry := range request {
 		// connect whenever we receive a first subscription message.
 		// this avoids creating a realtime connection to brokers which are not used.
-		if requester.realtimeConn == nil {
-			requester.initRealtimeConnection(ctx)
-			go requester.handleRealtimeData()
+		if rq.realtimeConn == nil {
+			rq.initRealtimeConnection(ctx)
+			go rq.handleRealtimeData()
 		}
 
 		var tickData chan stockapi.RealtimeTickData
-		var exists bool
+		var bidAskData chan stockapi.RealtimeBidAskData
 		var err error
 		switch entry.Type {
-		case stockval.RealtimeDataSubscribe:
-			if tickData, exists = requester.tickDataMap.Load(entry.Stock.Symbol); exists {
-				err = fmt.Errorf("already subscribed to %s", entry.Stock.Symbol)
-			} else {
-				// this is required to be a buffered channel, so that it is possible to delete old data in case processing is too slow
-				// new tick data is always more important than old data
-				tickData = make(chan stockapi.RealtimeTickData, 1024)
-				requester.tickDataMap.Store(entry.Stock.Symbol, tickData)
-			}
-		case stockval.RealtimeDataUnsubscribe:
-
-			if tickData, exists = requester.tickDataMap.LoadAndDelete(entry.Stock.Symbol); exists {
-				// we should not close the channel here, because this might cause a race condition.
-				requester.pendingCloseListMutex.Lock()
-				requester.pendingCloseList = append(requester.pendingCloseList, tickData)
-				requester.pendingCloseListMutex.Unlock()
-			} else {
-				err = fmt.Errorf("cannot unsubscribe %s: not subscribed", entry.Stock.Symbol)
-			}
+		case stockapi.RealtimeTradesSubscribe:
+			tickData, err = rq.tickDataMap.Subscribe(entry.Stock)
+		case stockapi.RealtimeTradesUnsubscribe:
+			err = rq.tickDataMap.Unsubscribe(entry.Stock)
+		case stockapi.RealtimeBidAskSubscribe:
+			bidAskData, err = rq.bidAskDataMap.Subscribe(entry.Stock)
+		case stockapi.RealtimeBidAskUnsubscribe:
+			err = rq.bidAskDataMap.Unsubscribe(entry.Stock)
 		default:
 			panic("unsupported realtime data subscription mode")
 		}
 		if err == nil {
-			subscribeCommand := realtimeSubscribeCommand{
-				Action: getRealtimeDataSubscriptionStr(entry.Type),
-				Trades: []string{entry.Stock.Symbol},
-			}
+			subscribeCommand := getRealtimeSubscribeCommand(entry.Type, entry.Stock)
 			msg, _ := json.Marshal(subscribeCommand)
-			requester.realtimeConn.WriteMessage(websocket.TextMessage, msg)
+			rq.realtimeConn.WriteMessage(websocket.TextMessage, msg)
 		}
 
-		responseData := stockapi.SubscribeTradesResponse{
-			Figi:     entry.Stock.Figi,
-			Error:    err,
-			Type:     entry.Type,
-			TickData: tickData,
+		responseData := stockapi.SubscribeDataResponse{
+			Figi:       entry.Stock.Figi,
+			Error:      err,
+			Type:       entry.Type,
+			TickData:   tickData,
+			BidAskData: bidAskData,
 		}
 		response <- responseData
 	}
-	if requester.realtimeConn != nil {
-		requester.realtimeConn.Close()
-		requester.realtimeConn = nil
+	if rq.realtimeConn != nil {
+		rq.realtimeConn.Close()
+		rq.realtimeConn = nil
 	}
 }
 
-func (requester *alpacaStockRequester) ReadConfig(c config.Config) error {
+func (rq *alpacaStockRequester) ReadConfig(c config.Config) error {
 	appConfig, err := c.Copy()
 	if err != nil {
 		return err
 	}
-	requester.config = appConfig.BrokerConfig[GetBrokerId()]
-	requester.apiClient.Timeout = time.Second * time.Duration(requester.config.DataTimeoutSeconds)
+	rq.config = appConfig.BrokerConfig[GetBrokerId()]
+	rq.apiClient.Timeout = time.Second * time.Duration(rq.config.DataTimeoutSeconds)
 	return nil
 }
 

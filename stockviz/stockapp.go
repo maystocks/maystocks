@@ -72,8 +72,8 @@ type StockApp struct {
 
 type BrokerData struct {
 	stockValueRequester stockapi.StockValueRequester
-	tradesRequestChan   chan stockapi.SubscribeTradesRequest
-	tradesResponseChan  chan stockapi.SubscribeTradesResponse
+	dataRequestChan     chan stockapi.SubscribeDataRequest
+	dataResponseChan    chan stockapi.SubscribeDataResponse
 	stockMap            *skipmap.StringMap[PriceData]
 }
 
@@ -111,12 +111,12 @@ func (a *StockApp) Initialize(ctx context.Context, svr map[stockval.BrokerId]sto
 		p := BrokerData{
 			stockValueRequester: r,
 			// TODO size of buffered channels?
-			tradesRequestChan:  make(chan stockapi.SubscribeTradesRequest, 10),
-			tradesResponseChan: make(chan stockapi.SubscribeTradesResponse, 10),
-			stockMap:           skipmap.NewString[PriceData](),
+			dataRequestChan:  make(chan stockapi.SubscribeDataRequest, 10),
+			dataResponseChan: make(chan stockapi.SubscribeDataResponse, 10),
+			stockMap:         skipmap.NewString[PriceData](),
 		}
 		a.brokerData[name] = p
-		go r.SubscribeTrades(context.Background(), p.tradesRequestChan, p.tradesResponseChan)
+		go r.SubscribeData(context.Background(), p.dataRequestChan, p.dataResponseChan)
 		a.terminateWg.Add(1)
 		go a.handleTradesResponseChan(p)
 	}
@@ -247,18 +247,25 @@ func (a *StockApp) saveAndReloadConfiguration(ctx context.Context) {
 
 func (a *StockApp) handleTradesResponseChan(p BrokerData) {
 	defer a.terminateWg.Done()
-	for tradesResponseData := range p.tradesResponseChan {
+	for tradesResponseData := range p.dataResponseChan {
 		if tradesResponseData.Error != nil {
 			log.Printf("error requesting realtime data: %v", tradesResponseData.Error)
 			continue
 		}
-		if tradesResponseData.Type == stockval.RealtimeDataSubscribe {
+		if tradesResponseData.Type == stockapi.RealtimeTradesSubscribe {
 			data, ok := p.stockMap.Load(tradesResponseData.Figi)
 			if !ok {
-				log.Printf("error: invalid realtime channel")
+				log.Printf("error: invalid realtime trades channel")
 				continue
 			}
-			data.SetRealtimeChan(tradesResponseData.TickData, a)
+			data.SetRealtimeTradesChan(tradesResponseData.TickData, a)
+		} else if tradesResponseData.Type == stockapi.RealtimeBidAskSubscribe {
+			data, ok := p.stockMap.Load(tradesResponseData.Figi)
+			if !ok {
+				log.Printf("error: invalid realtime bid/ask channel")
+				continue
+			}
+			data.SetRealtimeBidAskChan(tradesResponseData.BidAskData, a)
 		}
 	}
 }
@@ -477,7 +484,7 @@ func (a *StockApp) terminate() {
 	a.terminateTimerChan <- struct{}{}
 	close(a.terminateTimerChan)
 	for _, p := range a.brokerData {
-		close(p.tradesRequestChan)
+		close(p.dataRequestChan)
 	}
 	a.terminateWg.Wait()
 }
@@ -516,11 +523,18 @@ func (a *StockApp) AddPlot(ctx context.Context, entry stockval.AssetData, candle
 	})
 	if !loaded {
 		// Request realtime data for new stocks.
-		tradesRequestData := stockapi.SubscribeTradesRequest{
+		tradesRequestData := stockapi.SubscribeDataRequest{
 			Stock: entry,
-			Type:  stockval.RealtimeDataSubscribe,
+			Type:  stockapi.RealtimeTradesSubscribe,
 		}
-		brokerData.tradesRequestChan <- tradesRequestData
+		brokerData.dataRequestChan <- tradesRequestData
+		if brokerData.stockValueRequester.GetCapabilities().RealtimeBidAsk {
+			bidAskRequestData := stockapi.SubscribeDataRequest{
+				Stock: entry,
+				Type:  stockapi.RealtimeBidAskSubscribe,
+			}
+			brokerData.dataRequestChan <- bidAskRequestData
+		}
 	}
 }
 
@@ -555,11 +569,18 @@ func (a *StockApp) RemovePlot(entry stockval.AssetData, uiIndex int32) {
 		}
 		priceData.Cleanup()
 		// unsubscribe realtime data
-		tradesRequestData := stockapi.SubscribeTradesRequest{
+		tradesRequestData := stockapi.SubscribeDataRequest{
 			Stock: entry,
-			Type:  stockval.RealtimeDataUnsubscribe,
+			Type:  stockapi.RealtimeTradesUnsubscribe,
 		}
-		brokerData.tradesRequestChan <- tradesRequestData
+		brokerData.dataRequestChan <- tradesRequestData
+		if brokerData.stockValueRequester.GetCapabilities().RealtimeBidAsk {
+			bidAskRequestData := stockapi.SubscribeDataRequest{
+				Stock: entry,
+				Type:  stockapi.RealtimeBidAskUnsubscribe,
+			}
+			brokerData.dataRequestChan <- bidAskRequestData
+		}
 	}
 }
 

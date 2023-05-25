@@ -14,6 +14,10 @@ import (
 	"github.com/ericlagergren/decimal"
 )
 
+type Capabilities struct {
+	RealtimeBidAsk bool
+}
+
 type SearchRequest struct {
 	RequestId         string
 	Text              string
@@ -28,6 +32,7 @@ type SearchResponse struct {
 }
 
 type SymbolSearchTool interface {
+	GetCapabilities() Capabilities
 	RemainingApiLimit() int
 	ReadConfig(c config.Config) error
 	FindAsset(ctx context.Context, entry <-chan SearchRequest, response chan<- SearchResponse)
@@ -55,6 +60,20 @@ type QueryCandlesResponse struct {
 	Data       []indapi.CandleData
 }
 
+type RealtimeDataSubscription int32
+
+const (
+	RealtimeTradesSubscribe RealtimeDataSubscription = iota
+	RealtimeTradesUnsubscribe
+	RealtimeBidAskSubscribe
+	RealtimeBidAskUnsubscribe
+)
+
+type SubscribeDataRequest struct {
+	Stock stockval.AssetData
+	Type  RealtimeDataSubscription
+}
+
 type RealtimeTickData struct {
 	Timestamp    time.Time
 	Price        *decimal.Big
@@ -62,21 +81,25 @@ type RealtimeTickData struct {
 	TradeContext stockval.TradeContext
 }
 
-type SubscribeTradesRequest struct {
-	Stock stockval.AssetData
-	Type  stockval.RealtimeDataSubscription
+type RealtimeBidAskData struct {
+	Timestamp time.Time
+	BidPrice  *decimal.Big
+	BidSize   uint
+	AskPrice  *decimal.Big
+	AskSize   uint
 }
 
-type SubscribeTradesResponse struct {
-	Figi     string
-	Error    error
-	Type     stockval.RealtimeDataSubscription
-	TickData chan RealtimeTickData
+type SubscribeDataResponse struct {
+	Figi       string
+	Error      error
+	Type       RealtimeDataSubscription
+	TickData   chan RealtimeTickData
+	BidAskData chan RealtimeBidAskData
 }
 
 type StockValueRequester interface {
 	SymbolSearchTool
 	QueryQuote(ctx context.Context, entry <-chan stockval.AssetData, response chan<- QueryQuoteResponse)
 	QueryCandles(ctx context.Context, request <-chan CandlesRequest, response chan<- QueryCandlesResponse)
-	SubscribeTrades(ctx context.Context, entry <-chan SubscribeTradesRequest, response chan<- SubscribeTradesResponse)
+	SubscribeData(ctx context.Context, request <-chan SubscribeDataRequest, response chan<- SubscribeDataResponse)
 }

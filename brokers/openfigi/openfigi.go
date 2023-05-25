@@ -86,16 +86,20 @@ func GetBrokerId() stockval.BrokerId {
 	return "openfigi"
 }
 
-func (requester *openFigiRequester) RemainingApiLimit() int {
-	return calc.Min(requester.mappingRateLimiter.Remaining(), requester.searchRateLimiter.Remaining())
+func (rq *openFigiRequester) GetCapabilities() stockapi.Capabilities {
+	return stockapi.Capabilities{}
 }
 
-func (requester *openFigiRequester) createOpenFigiRequest(cmd string, body io.Reader) (*http.Request, error) {
-	req, err := http.NewRequest("POST", requester.config.DataUrl+cmd, body)
+func (rq *openFigiRequester) RemainingApiLimit() int {
+	return calc.Min(rq.mappingRateLimiter.Remaining(), rq.searchRateLimiter.Remaining())
+}
+
+func (rq *openFigiRequester) createOpenFigiRequest(cmd string, body io.Reader) (*http.Request, error) {
+	req, err := http.NewRequest("POST", rq.config.DataUrl+cmd, body)
 	if err != nil {
 		return req, err
 	}
-	token := requester.config.ApiKey
+	token := rq.config.ApiKey
 	if token != "" {
 		req.Header.Add("X-OPENFIGI-APIKEY", token)
 	}
@@ -115,11 +119,11 @@ func mapSymbolData(s FigiData) stockval.AssetData {
 	}
 }
 
-func (requester *openFigiRequester) FindAsset(ctx context.Context, entry <-chan stockapi.SearchRequest, response chan<- stockapi.SearchResponse) {
+func (rq *openFigiRequester) FindAsset(ctx context.Context, entry <-chan stockapi.SearchRequest, response chan<- stockapi.SearchResponse) {
 	defer close(response)
 
 	for entry := range entry {
-		responseData := requester.queryFigi(ctx, entry)
+		responseData := rq.queryFigi(ctx, entry)
 		if responseData.Error != nil {
 			log.Print(responseData.Error)
 		}
@@ -127,7 +131,7 @@ func (requester *openFigiRequester) FindAsset(ctx context.Context, entry <-chan 
 	}
 }
 
-func (requester *openFigiRequester) queryFigi(ctx context.Context, searchData stockapi.SearchRequest) stockapi.SearchResponse {
+func (rq *openFigiRequester) queryFigi(ctx context.Context, searchData stockapi.SearchRequest) stockapi.SearchResponse {
 	searchText := stockval.NormalizeAssetName(searchData.Text)
 	mappingFilters := mappingFilters{
 		ExchangeCode: stockval.DefaultExchange,
@@ -142,9 +146,9 @@ func (requester *openFigiRequester) queryFigi(ctx context.Context, searchData st
 			IdValue:        searchText,
 			mappingFilters: mappingFilters,
 		}
-		figiData, err = requester.executeOpenFigiMappingQuery(ctx, mappingReq)
+		figiData, err = rq.executeOpenFigiMappingQuery(ctx, mappingReq)
 	} else if searchData.UnambiguousLookup {
-		cacheData, ok := requester.tickerFigiCache.Load(searchText)
+		cacheData, ok := rq.tickerFigiCache.Load(searchText)
 		if ok {
 			figiData = []FigiData{cacheData}
 		} else {
@@ -153,9 +157,9 @@ func (requester *openFigiRequester) queryFigi(ctx context.Context, searchData st
 				IdValue:        searchText,
 				mappingFilters: mappingFilters,
 			}
-			figiData, err = requester.executeOpenFigiMappingQuery(ctx, mappingReq)
+			figiData, err = rq.executeOpenFigiMappingQuery(ctx, mappingReq)
 			if err == nil {
-				requester.tickerFigiCache.Store(searchText, figiData[0])
+				rq.tickerFigiCache.Store(searchText, figiData[0])
 			}
 		}
 	} else {
@@ -163,7 +167,7 @@ func (requester *openFigiRequester) queryFigi(ctx context.Context, searchData st
 			Query:          searchText,
 			mappingFilters: mappingFilters,
 		}
-		figiData, err = requester.executeOpenFigiSearchQuery(ctx, searchReq)
+		figiData, err = rq.executeOpenFigiSearchQuery(ctx, searchReq)
 	}
 	if err != nil {
 		return stockapi.SearchResponse{SearchRequest: searchData, Error: err}
@@ -179,7 +183,7 @@ func (requester *openFigiRequester) queryFigi(ctx context.Context, searchData st
 	}
 }
 
-func (requester *openFigiRequester) executeOpenFigiSearchQuery(ctx context.Context, searchReq searchRequest) ([]FigiData, error) {
+func (rq *openFigiRequester) executeOpenFigiSearchQuery(ctx context.Context, searchReq searchRequest) ([]FigiData, error) {
 	searchJson, err := json.Marshal(searchReq)
 	if err != nil {
 		return []FigiData{}, err
@@ -188,20 +192,20 @@ func (requester *openFigiRequester) executeOpenFigiSearchQuery(ctx context.Conte
 	retry := true
 	var resp *http.Response
 	for retry {
-		err := requester.searchRateLimiter.Wait(ctx)
+		err := rq.searchRateLimiter.Wait(ctx)
 		if err != nil {
 			return []FigiData{}, err
 		}
-		req, err := requester.createOpenFigiRequest("/search", bytes.NewBuffer(searchJson))
+		req, err := rq.createOpenFigiRequest("/search", bytes.NewBuffer(searchJson))
 		if err != nil {
 			return []FigiData{}, err
 		}
 
-		resp, err := requester.apiClient.Do(req)
+		resp, err := rq.apiClient.Do(req)
 		if err != nil {
 			return []FigiData{}, err
 		}
-		retry, err = requester.searchRateLimiter.HandleResponseHeadersWithWait(ctx, resp)
+		retry, err = rq.searchRateLimiter.HandleResponseHeadersWithWait(ctx, resp)
 		if err != nil {
 			resp.Body.Close()
 			return []FigiData{}, err
@@ -226,7 +230,7 @@ func (requester *openFigiRequester) executeOpenFigiSearchQuery(ctx context.Conte
 	return responseData.Data, nil
 }
 
-func (requester *openFigiRequester) executeOpenFigiMappingQuery(ctx context.Context, mappingReq mappingRequest) ([]FigiData, error) {
+func (rq *openFigiRequester) executeOpenFigiMappingQuery(ctx context.Context, mappingReq mappingRequest) ([]FigiData, error) {
 	mappingReqList := [1]mappingRequest{
 		mappingReq,
 	}
@@ -238,21 +242,21 @@ func (requester *openFigiRequester) executeOpenFigiMappingQuery(ctx context.Cont
 	retry := true
 	var resp *http.Response
 	for retry {
-		err := requester.mappingRateLimiter.Wait(ctx)
+		err := rq.mappingRateLimiter.Wait(ctx)
 		if err != nil {
 			return []FigiData{}, err
 		}
 
-		req, err := requester.createOpenFigiRequest("/mapping", bytes.NewBuffer(mappingJson))
+		req, err := rq.createOpenFigiRequest("/mapping", bytes.NewBuffer(mappingJson))
 		if err != nil {
 			return []FigiData{}, err
 		}
 
-		resp, err = requester.apiClient.Do(req)
+		resp, err = rq.apiClient.Do(req)
 		if err != nil {
 			return []FigiData{}, err
 		}
-		retry, err = requester.mappingRateLimiter.HandleResponseHeadersWithWait(ctx, resp)
+		retry, err = rq.mappingRateLimiter.HandleResponseHeadersWithWait(ctx, resp)
 		if err != nil {
 			resp.Body.Close()
 			return []FigiData{}, err
@@ -280,13 +284,13 @@ func (requester *openFigiRequester) executeOpenFigiMappingQuery(ctx context.Cont
 	return responseData[0].Data, nil
 }
 
-func (requester *openFigiRequester) ReadConfig(c config.Config) error {
+func (rq *openFigiRequester) ReadConfig(c config.Config) error {
 	appConfig, err := c.Copy()
 	if err != nil {
 		return err
 	}
-	requester.config = appConfig.BrokerConfig[GetBrokerId()]
-	requester.apiClient.Timeout = time.Second * time.Duration(requester.config.DataTimeoutSeconds)
+	rq.config = appConfig.BrokerConfig[GetBrokerId()]
+	rq.apiClient.Timeout = time.Second * time.Duration(rq.config.DataTimeoutSeconds)
 	return nil
 }
 
