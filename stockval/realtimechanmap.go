@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) Lothar May
 
-package stockapi
+package stockval
 
 import (
 	"fmt"
-	"maystocks/stockval"
 	"sync"
 
 	"github.com/zhangyunhao116/skipmap"
@@ -49,7 +48,7 @@ func (m *RealtimeChanMap[T]) Clear() {
 	m.sm = skipmap.NewString[chan T]()
 }
 
-func (m *RealtimeChanMap[T]) Subscribe(entry stockval.AssetData) (chan T, error) {
+func (m *RealtimeChanMap[T]) Subscribe(entry AssetData) (chan T, error) {
 	// this is required to be a buffered channel, so that it is possible to delete old data in case processing is too slow
 	// new realtime data is always more important than old data
 	// TODO size of chan
@@ -63,7 +62,7 @@ func (m *RealtimeChanMap[T]) Subscribe(entry stockval.AssetData) (chan T, error)
 	return c, err
 }
 
-func (m *RealtimeChanMap[T]) Unsubscribe(entry stockval.AssetData) error {
+func (m *RealtimeChanMap[T]) Unsubscribe(entry AssetData) error {
 	var err error
 	if c, exists := m.sm.LoadAndDelete(entry.Symbol); exists {
 		// we should not close the channel here, because this might cause a race condition.

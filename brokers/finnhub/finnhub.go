@@ -34,7 +34,7 @@ type finnhubStockRequester struct {
 	perSecondRateLimiter *webclient.RateLimiter
 	apiClient            *http.Client
 	realtimeConn         *websocket.Conn
-	tickDataMap          *stockapi.RealtimeChanMap[stockapi.RealtimeTickData]
+	tickDataMap          *stockval.RealtimeChanMap[stockapi.RealtimeTickData]
 	cache                *cache.AssetCache
 	figiReq              stockapi.SymbolSearchTool
 	config               config.BrokerConfig
@@ -178,7 +178,7 @@ func NewStockRequester(figiReq stockapi.SymbolSearchTool) stockapi.StockValueReq
 		rateLimiter:          webclient.NewRateLimiter(),
 		perSecondRateLimiter: webclient.NewRateLimiter(),
 		apiClient:            &http.Client{},
-		tickDataMap:          stockapi.NewRealtimeChanMap[stockapi.RealtimeTickData](),
+		tickDataMap:          stockval.NewRealtimeChanMap[stockapi.RealtimeTickData](),
 		cache:                cache.NewAssetCache(GetBrokerId()),
 		figiReq:              figiReq,
 	}

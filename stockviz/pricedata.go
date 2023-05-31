@@ -116,7 +116,7 @@ func (p *PriceData) SetRealtimeTradesChan(realtimeChan chan stockapi.RealtimeTic
 			p.AddRealtimePriceData(data.Timestamp, data.Price, data.Volume, data.TradeContext)
 			uiUpdater.Invalidate()
 		}
-		log.Printf("Realtime channel %s was closed.", p.Entry.Figi)
+		log.Printf("Realtime trades channel %s was closed.", p.Entry.Figi)
 	}()
 }
 
@@ -127,7 +127,7 @@ func (p *PriceData) SetRealtimeBidAskChan(realtimeChan chan stockapi.RealtimeBid
 			// TODO handle bid/ask data
 			uiUpdater.Invalidate()
 		}
-		log.Printf("Realtime channel %s was closed.", p.Entry.Figi)
+		log.Printf("Realtime bid/ask channel %s was closed.", p.Entry.Figi)
 	}()
 }
 

@@ -31,8 +31,8 @@ type alpacaStockRequester struct {
 	rateLimiter   *webclient.RateLimiter
 	apiClient     *http.Client
 	realtimeConn  *websocket.Conn
-	tickDataMap   *stockapi.RealtimeChanMap[stockapi.RealtimeTickData]
-	bidAskDataMap *stockapi.RealtimeChanMap[stockapi.RealtimeBidAskData]
+	tickDataMap   *stockval.RealtimeChanMap[stockapi.RealtimeTickData]
+	bidAskDataMap *stockval.RealtimeChanMap[stockapi.RealtimeBidAskData]
 	cache         *cache.AssetCache
 	figiReq       stockapi.SymbolSearchTool
 	config        config.BrokerConfig
@@ -238,8 +238,8 @@ func NewStockRequester(figiReq stockapi.SymbolSearchTool) stockapi.StockValueReq
 	return &alpacaStockRequester{
 		rateLimiter:   webclient.NewRateLimiter(),
 		apiClient:     &http.Client{},
-		tickDataMap:   stockapi.NewRealtimeChanMap[stockapi.RealtimeTickData](),
-		bidAskDataMap: stockapi.NewRealtimeChanMap[stockapi.RealtimeBidAskData](),
+		tickDataMap:   stockval.NewRealtimeChanMap[stockapi.RealtimeTickData](),
+		bidAskDataMap: stockval.NewRealtimeChanMap[stockapi.RealtimeBidAskData](),
 		cache:         cache.NewAssetCache(GetBrokerId()),
 		figiReq:       figiReq,
 	}
