@@ -23,8 +23,8 @@ require (
 )
 
 require (
-	gioui.org v0.0.0-20230502183330-59695984e53c
-	gioui.org/x v0.0.0-20230426160849-752f112c7a59
+	gioui.org v0.0.0-20230526230622-e3ef98dda382
+	gioui.org/x v0.0.0-20230523210033-8432ec5563bb
 	github.com/barkimedes/go-deepcopy v0.0.0-20220514131651-17c30cfc62df
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/ericlagergren/decimal v0.0.0-20221120152707-495c53812d05
@@ -32,7 +32,7 @@ require (
 	github.com/gorilla/websocket v1.5.0
 	github.com/lotodore/localcache v0.0.0-20230412123518-3323bdbf3de4
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/stretchr/testify v1.8.2
+	github.com/stretchr/testify v1.8.4
 	github.com/zhangyunhao116/skipmap v0.10.1
 	gopkg.in/yaml.v3 v3.0.1
 )
