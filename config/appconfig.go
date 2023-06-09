@@ -10,6 +10,7 @@ import (
 )
 
 type AppConfig struct {
+	IsEncrypted      bool `yaml:"-"`
 	LicenseConfirmed bool `yaml:",omitempty"`
 	LightTheme       bool `yaml:",omitempty"`
 	BrokerConfig     map[stockval.BrokerId]BrokerConfig

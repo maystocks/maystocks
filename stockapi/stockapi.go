@@ -74,27 +74,12 @@ type SubscribeDataRequest struct {
 	Type  RealtimeDataSubscription
 }
 
-type RealtimeTickData struct {
-	Timestamp    time.Time
-	Price        *decimal.Big
-	Volume       *decimal.Big
-	TradeContext stockval.TradeContext
-}
-
-type RealtimeBidAskData struct {
-	Timestamp time.Time
-	BidPrice  *decimal.Big
-	BidSize   uint
-	AskPrice  *decimal.Big
-	AskSize   uint
-}
-
 type SubscribeDataResponse struct {
 	Figi       string
 	Error      error
 	Type       RealtimeDataSubscription
-	TickData   chan RealtimeTickData
-	BidAskData chan RealtimeBidAskData
+	TickData   chan stockval.RealtimeTickData
+	BidAskData chan stockval.RealtimeBidAskData
 }
 
 type StockValueRequester interface {

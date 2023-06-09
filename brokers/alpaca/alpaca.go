@@ -31,8 +31,8 @@ type alpacaStockRequester struct {
 	rateLimiter   *webclient.RateLimiter
 	apiClient     *http.Client
 	realtimeConn  *websocket.Conn
-	tickDataMap   *stockval.RealtimeChanMap[stockapi.RealtimeTickData]
-	bidAskDataMap *stockval.RealtimeChanMap[stockapi.RealtimeBidAskData]
+	tickDataMap   *stockval.RealtimeChanMap[stockval.RealtimeTickData]
+	bidAskDataMap *stockval.RealtimeChanMap[stockval.RealtimeBidAskData]
 	cache         *cache.AssetCache
 	figiReq       stockapi.SymbolSearchTool
 	config        config.BrokerConfig
@@ -238,8 +238,8 @@ func NewStockRequester(figiReq stockapi.SymbolSearchTool) stockapi.StockValueReq
 	return &alpacaStockRequester{
 		rateLimiter:   webclient.NewRateLimiter(),
 		apiClient:     &http.Client{},
-		tickDataMap:   stockval.NewRealtimeChanMap[stockapi.RealtimeTickData](),
-		bidAskDataMap: stockval.NewRealtimeChanMap[stockapi.RealtimeBidAskData](),
+		tickDataMap:   stockval.NewRealtimeChanMap[stockval.RealtimeTickData](),
+		bidAskDataMap: stockval.NewRealtimeChanMap[stockval.RealtimeBidAskData](),
 		cache:         cache.NewAssetCache(GetBrokerId()),
 		figiReq:       figiReq,
 	}
@@ -576,7 +576,7 @@ func (rq *alpacaStockRequester) handleRealtimeData() {
 						log.Printf("alpaca sent unknown tape: %v", data[i].Tape)
 					}
 				}
-				tickData := stockapi.RealtimeTickData{
+				tickData := stockval.RealtimeTickData{
 					Timestamp:    data[i].Timestamp,
 					Price:        data[i].Price,
 					Volume:       data[i].TradeSize,
@@ -587,7 +587,7 @@ func (rq *alpacaStockRequester) handleRealtimeData() {
 					log.Println(err)
 				}
 			} else if data[i].Type == messageTypeQuote {
-				bidAskData := stockapi.RealtimeBidAskData{
+				bidAskData := stockval.RealtimeBidAskData{
 					Timestamp: data[i].Timestamp,
 					BidPrice:  data[i].BidPrice,
 					BidSize:   data[i].BidSize,
@@ -613,8 +613,8 @@ func (rq *alpacaStockRequester) SubscribeData(ctx context.Context, request <-cha
 			go rq.handleRealtimeData()
 		}
 
-		var tickData chan stockapi.RealtimeTickData
-		var bidAskData chan stockapi.RealtimeBidAskData
+		var tickData chan stockval.RealtimeTickData
+		var bidAskData chan stockval.RealtimeBidAskData
 		var err error
 		switch entry.Type {
 		case stockapi.RealtimeTradesSubscribe:
@@ -650,7 +650,7 @@ func (rq *alpacaStockRequester) SubscribeData(ctx context.Context, request <-cha
 }
 
 func (rq *alpacaStockRequester) ReadConfig(c config.Config) error {
-	appConfig, err := c.Copy()
+	appConfig, err := c.Copy(false)
 	if err != nil {
 		return err
 	}
@@ -660,7 +660,7 @@ func (rq *alpacaStockRequester) ReadConfig(c config.Config) error {
 }
 
 func IsValidConfig(c config.Config) bool {
-	appConfig, err := c.Copy()
+	appConfig, err := c.Copy(false)
 	if err != nil {
 		return false
 	}

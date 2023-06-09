@@ -19,14 +19,18 @@ func (t *TestConfig) GetAppName() string {
 	return "test"
 }
 
+func (g *TestConfig) SetEncryptionPassword(pw string) {
+	// Not used with test config
+}
+
 func (t *TestConfig) Lock() (*AppConfig, error) {
 	return &t.appConfig, nil
 }
 
-func (t *TestConfig) Unlock(c *AppConfig) error {
+func (t *TestConfig) Unlock(c *AppConfig, forceWriting bool) error {
 	return nil
 }
 
-func (t *TestConfig) Copy() (AppConfig, error) {
+func (t *TestConfig) Copy(forceReading bool) (AppConfig, error) {
 	return t.appConfig, nil
 }

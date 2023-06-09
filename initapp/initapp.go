@@ -29,26 +29,34 @@ type initUiState int
 
 const (
 	StateConfirmLicense initUiState = iota
+	StateNewPassword
 	StateInitialSettings
+	StateEnterPassword
 )
 
 type InitApp struct {
-	initWindow       *app.Window
-	config           config.Config
-	stockRequester   map[stockval.BrokerId]stockapi.StockValueRequester
-	defaultBroker    stockval.BrokerId
-	licenseConfirmed bool
-	uiState          initUiState
-	licenseView      *widgets.LicenseView
-	configView       *widgets.ConfigView
+	initWindow         *app.Window
+	config             config.Config
+	stockRequester     map[stockval.BrokerId]stockapi.StockValueRequester
+	defaultBroker      stockval.BrokerId
+	licenseConfirmed   bool
+	hasEncryptedConfig bool
+	uiState            initUiState
+	licenseView        *widgets.LicenseView
+	pwCreatorView      *widgets.PasswordCreatorView
+	pwRequesterView    *widgets.PasswordRequesterView
+	configView         *widgets.ConfigView
+	forceNewConfig     bool
 }
 
 func NewInitApp(c config.Config) *InitApp {
 	return &InitApp{
-		stockRequester: make(map[stockval.BrokerId]stockapi.StockValueRequester),
-		config:         c,
-		licenseView:    widgets.NewLicenseView(),
-		configView:     widgets.NewConfigView(config.NewBrokerConfigMap()),
+		stockRequester:  make(map[stockval.BrokerId]stockapi.StockValueRequester),
+		config:          c,
+		licenseView:     widgets.NewLicenseView(),
+		pwCreatorView:   widgets.NewPasswordCreatorView(),
+		pwRequesterView: widgets.NewPasswordRequesterView(),
+		configView:      widgets.NewConfigView(config.NewBrokerConfigMap()),
 	}
 }
 
@@ -57,10 +65,11 @@ func (a *InitApp) Initialize(licenseText string) {
 }
 
 func (a *InitApp) reloadConfiguration() error {
-	appConfig, err := a.config.Copy()
+	appConfig, err := a.config.Copy(true)
 	if err != nil {
 		return err
 	}
+	a.hasEncryptedConfig = appConfig.IsEncrypted
 	a.licenseConfirmed = appConfig.LicenseConfirmed
 
 	if !openfigi.IsValidConfig(a.config) {
@@ -92,10 +101,6 @@ func (a *InitApp) reloadConfiguration() error {
 	a.configView.SetBrokerConfig(&appConfig)
 	a.configView.SetWindowConfig(&appConfig)
 
-	if len(a.stockRequester) == 0 {
-		return errors.New("no broker was configured")
-	}
-
 	return nil
 }
 
@@ -107,26 +112,29 @@ func (a *InitApp) saveConfiguration() error {
 	appConfig.LicenseConfirmed = a.licenseConfirmed
 	a.configView.GetWindowConfig(appConfig)
 	a.configView.GetBrokerConfig(appConfig)
-	return a.config.Unlock(appConfig)
+	return a.config.Unlock(appConfig, a.forceNewConfig || !a.hasEncryptedConfig)
 }
 
 func (a *InitApp) Run(ctx context.Context) {
 	err := a.reloadConfiguration()
-	// Show initialization window only if initial configuration is missing.
-	if err != nil || !a.licenseConfirmed {
-		a.createWindows()
-		err = a.handleEvents(ctx)
-		if err != nil {
-			log.Printf("terminating with error: %v", err)
-		}
-		a.terminate()
-		err = a.reloadConfiguration()
-		if err != nil {
-			log.Fatalf("initialization failed: %v", err)
-		}
-		if !a.licenseConfirmed {
-			log.Fatal("initialization failed: license not confirmed")
-		}
+	if err != nil || !a.hasEncryptedConfig {
+		a.uiState = StateNewPassword
+	} else {
+		// Skip configuration states
+		a.uiState = StateEnterPassword
+	}
+	a.createWindows()
+	err = a.handleEvents(ctx)
+	if err != nil {
+		log.Printf("terminating with error: %v", err)
+	}
+	a.terminate()
+	err = a.reloadConfiguration()
+	if err != nil {
+		log.Fatalf("initialization failed: %v", err)
+	}
+	if !a.licenseConfirmed || !a.hasEncryptedConfig || len(a.stockRequester) == 0 {
+		log.Fatal("initialization failed: missing initialization data")
 	}
 
 	// Start main app after initial configuration.
@@ -161,18 +169,51 @@ func (a *InitApp) handleEvents(ctx context.Context) error {
 			case StateConfirmLicense:
 				a.licenseView.Layout(th, gtx)
 				if a.licenseView.ConfirmClicked() {
-					a.uiState = StateInitialSettings
+					a.uiState = StateNewPassword
 				}
 				if a.licenseView.CancelClicked() {
 					a.initWindow.Perform(system.ActionClose)
 				}
-			default:
+			case StateNewPassword:
+				a.pwCreatorView.Layout(th, gtx)
+				if a.pwCreatorView.ConfirmClicked() {
+					pw := a.pwCreatorView.GetConfirmedPassword()
+					if len(pw) == 0 {
+						return errors.New("invalid password")
+					}
+					a.config.SetEncryptionPassword(pw)
+					err := a.reloadConfiguration()
+					if err != nil || !a.licenseConfirmed {
+						a.forceNewConfig = true
+						a.uiState = StateInitialSettings
+					} else {
+						a.initWindow.Perform(system.ActionClose)
+					}
+				}
+			case StateInitialSettings:
 				a.configView.Layout(th, gtx)
 				if a.configView.ConfirmClicked() {
 					a.licenseConfirmed = true
 					a.initWindow.Perform(system.ActionClose)
 				}
+			case StateEnterPassword:
+				a.pwRequesterView.Layout(th, gtx)
+				if a.pwRequesterView.ConfirmClicked() {
+					pw := a.pwRequesterView.GetConfirmedPassword()
+					if len(pw) == 0 {
+						return errors.New("invalid password")
+					}
+					a.config.SetEncryptionPassword(pw)
+					err := a.reloadConfiguration()
+					if err != nil || !a.licenseConfirmed {
+						a.forceNewConfig = true
+						a.uiState = StateInitialSettings
+					} else {
+						a.initWindow.Perform(system.ActionClose)
+					}
+				}
 			}
+
 			e.Frame(gtx.Ops)
 		case system.DestroyEvent:
 			return e.Err

@@ -23,6 +23,8 @@ type PriceData struct {
 	candlesMutex        *sync.Mutex
 	quote               *stockval.QuoteData
 	quoteMutex          *sync.Mutex
+	bidAsk              *stockval.RealtimeBidAskData
+	bidAskMutex         *sync.Mutex
 	stockValueRequester stockapi.StockValueRequester
 	uiUpdater           StockUiUpdater
 	quoteRequestChan    chan stockval.AssetData
@@ -37,6 +39,8 @@ func NewPriceData(entry stockval.AssetData) PriceData {
 		candlesMutex: new(sync.Mutex),
 		quote:        new(stockval.QuoteData),
 		quoteMutex:   new(sync.Mutex),
+		bidAsk:       new(stockval.RealtimeBidAskData),
+		bidAskMutex:  new(sync.Mutex),
 	}
 }
 
@@ -82,6 +86,12 @@ func (p *PriceData) GetQuoteCopy() stockval.QuoteData {
 	return *p.quote
 }
 
+func (p *PriceData) GetBidAskCopy() stockval.RealtimeBidAskData {
+	p.bidAskMutex.Lock()
+	defer p.bidAskMutex.Unlock()
+	return *p.bidAsk
+}
+
 func (p *PriceData) RefreshQuote() {
 	p.quoteRequestChan <- p.Entry
 }
@@ -110,29 +120,27 @@ func (p *PriceData) LoadOrAddCandleResolution(ctx context.Context, candleResolut
 	return c, ok
 }
 
-func (p *PriceData) SetRealtimeTradesChan(realtimeChan chan stockapi.RealtimeTickData, uiUpdater StockUiUpdater) {
+func (p *PriceData) SetRealtimeTradesChan(realtimeChan chan stockval.RealtimeTickData, uiUpdater StockUiUpdater) {
 	go func() {
 		for data := range realtimeChan {
-			p.AddRealtimePriceData(data.Timestamp, data.Price, data.Volume, data.TradeContext)
+			p.AddRealtimePriceData(data)
 			uiUpdater.Invalidate()
 		}
 		log.Printf("Realtime trades channel %s was closed.", p.Entry.Figi)
 	}()
 }
 
-func (p *PriceData) SetRealtimeBidAskChan(realtimeChan chan stockapi.RealtimeBidAskData, uiUpdater StockUiUpdater) {
+func (p *PriceData) SetRealtimeBidAskChan(realtimeChan chan stockval.RealtimeBidAskData, uiUpdater StockUiUpdater) {
 	go func() {
-		for _ = range realtimeChan {
-			//log.Printf("bid: %v, ask %v", data.BidPrice, data.AskPrice)
-			// TODO handle bid/ask data
+		for data := range realtimeChan {
+			p.AddRealtimeBidAskData(data)
 			uiUpdater.Invalidate()
 		}
 		log.Printf("Realtime bid/ask channel %s was closed.", p.Entry.Figi)
 	}()
 }
 
-func (p *PriceData) AddRealtimePriceData(timestamp time.Time, price *decimal.Big, volume *decimal.Big,
-	tradeContext stockval.TradeContext) {
+func (p *PriceData) AddRealtimePriceData(data stockval.RealtimeTickData) {
 	// IMPORTANT NOTE:
 	// Do not assume that the order of realtime data is correct (ordered by time), sometimes it is not.
 
@@ -140,10 +148,10 @@ func (p *PriceData) AddRealtimePriceData(timestamp time.Time, price *decimal.Big
 
 	// Update last price only if price data indicates update.
 	// We also implicitly update pre/post-market prices.
-	if tradeContext.UpdateLast {
-		p.RealtimeData.Store(timestamp.UnixMilli(), price)
+	if data.TradeContext.UpdateLast {
+		p.RealtimeData.Store(data.Timestamp.UnixMilli(), data.Price)
 		p.quoteMutex.Lock()
-		if tradeContext.ExtendedHours {
+		if data.TradeContext.ExtendedHours {
 			// use last delayed price as base for trade price difference outside of normal trading hours
 			p.quote.PreviousClosePrice = p.quote.CurrentDelayedPrice
 		}
@@ -152,9 +160,9 @@ func (p *PriceData) AddRealtimePriceData(timestamp time.Time, price *decimal.Big
 			p.quote.Type = stockval.QuoteTypeRealtime
 			p.quote.CurrentPriceTimestamp = time.Time{}
 		}
-		if timestamp.After(p.quote.CurrentPriceTimestamp) {
-			p.quote.CurrentPrice = price
-			p.quote.CurrentPriceTimestamp = timestamp
+		if data.Timestamp.After(p.quote.CurrentPriceTimestamp) {
+			p.quote.CurrentPrice = data.Price
+			p.quote.CurrentPriceTimestamp = data.Timestamp
 			if p.quote.PreviousClosePrice != nil {
 				p.quote.DeltaPercentage = stockval.CalculateDeltaPercentage(p.quote.PreviousClosePrice, p.quote.CurrentPrice)
 			}
@@ -164,7 +172,13 @@ func (p *PriceData) AddRealtimePriceData(timestamp time.Time, price *decimal.Big
 
 	p.candlesMutex.Lock()
 	for _, c := range p.candles {
-		c.CandleData.AddRealtimeData(timestamp, price, volume, tradeContext)
+		c.CandleData.AddRealtimeData(data.Timestamp, data.Price, data.Volume, data.TradeContext)
 	}
 	p.candlesMutex.Unlock()
+}
+
+func (p *PriceData) AddRealtimeBidAskData(data stockval.RealtimeBidAskData) {
+	p.bidAskMutex.Lock()
+	*p.bidAsk = data // Simply replace the previous values.
+	p.bidAskMutex.Unlock()
 }

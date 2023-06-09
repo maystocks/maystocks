@@ -34,7 +34,7 @@ type finnhubStockRequester struct {
 	perSecondRateLimiter *webclient.RateLimiter
 	apiClient            *http.Client
 	realtimeConn         *websocket.Conn
-	tickDataMap          *stockval.RealtimeChanMap[stockapi.RealtimeTickData]
+	tickDataMap          *stockval.RealtimeChanMap[stockval.RealtimeTickData]
 	cache                *cache.AssetCache
 	figiReq              stockapi.SymbolSearchTool
 	config               config.BrokerConfig
@@ -178,7 +178,7 @@ func NewStockRequester(figiReq stockapi.SymbolSearchTool) stockapi.StockValueReq
 		rateLimiter:          webclient.NewRateLimiter(),
 		perSecondRateLimiter: webclient.NewRateLimiter(),
 		apiClient:            &http.Client{},
-		tickDataMap:          stockval.NewRealtimeChanMap[stockapi.RealtimeTickData](),
+		tickDataMap:          stockval.NewRealtimeChanMap[stockval.RealtimeTickData](),
 		cache:                cache.NewAssetCache(GetBrokerId()),
 		figiReq:              figiReq,
 	}
@@ -460,7 +460,7 @@ func (rq *finnhubStockRequester) handleRealtimeData() {
 						}
 					}
 				}
-				tickData := stockapi.RealtimeTickData{
+				tickData := stockval.RealtimeTickData{
 					Timestamp:    tradeTime,
 					Price:        tickEntry.P,
 					Volume:       tickEntry.V,
@@ -485,7 +485,7 @@ func (rq *finnhubStockRequester) SubscribeData(ctx context.Context, request <-ch
 			go rq.handleRealtimeData()
 		}
 
-		var tickData chan stockapi.RealtimeTickData
+		var tickData chan stockval.RealtimeTickData
 		var err error
 		switch entry.Type {
 		case stockapi.RealtimeTradesSubscribe:
@@ -519,7 +519,7 @@ func (rq *finnhubStockRequester) SubscribeData(ctx context.Context, request <-ch
 }
 
 func (rq *finnhubStockRequester) ReadConfig(c config.Config) error {
-	appConfig, err := c.Copy()
+	appConfig, err := c.Copy(false)
 	if err != nil {
 		return err
 	}
@@ -530,7 +530,7 @@ func (rq *finnhubStockRequester) ReadConfig(c config.Config) error {
 }
 
 func IsValidConfig(c config.Config) bool {
-	appConfig, err := c.Copy()
+	appConfig, err := c.Copy(false)
 	if err != nil {
 		return false
 	}

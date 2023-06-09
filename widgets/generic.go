@@ -4,9 +4,12 @@
 package widgets
 
 import (
+	"image/color"
+
 	"gioui.org/layout"
 	"gioui.org/text"
 	"gioui.org/unit"
+	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"gioui.org/x/component"
 )
@@ -32,4 +35,68 @@ func divider(th *material.Theme, margin unit.Dp) component.DividerStyle {
 			Bottom: margin,
 		},
 	}
+}
+
+func layoutLeftRightWidgets(th *material.Theme, margin unit.Dp, gtx layout.Context, left layout.Widget, right layout.Widget) layout.Dimensions {
+	return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+		layout.Flexed(0.5, left),
+		layout.Flexed(0.5, right),
+	)
+}
+
+func layoutLabelWidget(th *material.Theme, margin unit.Dp, gtx layout.Context, text string, w layout.Widget) layout.Dimensions {
+	return layoutLeftRightWidgets(
+		th,
+		margin,
+		gtx,
+		func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Spacing: layout.SpaceStart}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Right: margin * 2, Bottom: margin}.Layout(gtx, material.Body1(th, text).Layout)
+				}))
+		},
+		func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Bottom: margin}.Layout(gtx, w)
+		},
+	)
+
+}
+
+func layoutConfirmationFrame(th *material.Theme, margin unit.Dp, gtx layout.Context, buttonContinue *widget.Clickable, w layout.Widget) layout.Dimensions {
+	return layout.Flex{
+		Axis: layout.Vertical,
+	}.Layout(gtx,
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			return Frame{InnerMargin: margin / 2, OuterMargin: margin, BorderWidth: 1, BorderColor: th.Palette.ContrastBg, BackgroundColor: th.Palette.Bg}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return w(gtx)
+			},
+			)
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Right: margin, Bottom: margin, Left: margin}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{}.Layout(gtx,
+					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+						return material.Button(th, buttonContinue, "Done").Layout(gtx)
+					}),
+				)
+			})
+		},
+		),
+	)
+}
+
+func layoutConfigChild(th *material.Theme, margin unit.Dp, gtx layout.Context, field *component.TextField, label string, hint string, note string, highlightNote bool) layout.Dimensions {
+	return layoutLabelWidget(th, margin, gtx, label, func(gtx layout.Context) layout.Dimensions {
+		noteLabel := material.Body2(th, note)
+		if highlightNote {
+			// TODO use theme
+			noteLabel.Color = color.NRGBA{R: 255, A: 255}
+		}
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return field.Layout(gtx, th, hint)
+			}),
+			layout.Rigid(noteLabel.Layout),
+		)
+	})
 }

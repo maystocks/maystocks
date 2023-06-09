@@ -26,3 +26,18 @@ type QuoteData struct {
 	PreviousClosePrice        *decimal.Big
 	DeltaPercentage           *decimal.Big
 }
+
+type RealtimeTickData struct {
+	Timestamp    time.Time
+	Price        *decimal.Big
+	Volume       *decimal.Big
+	TradeContext TradeContext
+}
+
+type RealtimeBidAskData struct {
+	Timestamp time.Time
+	BidPrice  *decimal.Big
+	BidSize   uint
+	AskPrice  *decimal.Big
+	AskSize   uint
+}

@@ -284,6 +284,7 @@ func (v *PlotView) Layout(ctx context.Context, gtx layout.Context, th *material.
 							ind.Plot(v.Plot.Sub[0], gtx, th)
 						}
 						quote := priceData.GetQuoteCopy()
+						bidAsk := priceData.GetBidAskCopy()
 						v.Plot.Sub[0].PlotQuoteLine( // TODO hard coded plot index
 							quote,
 							gtx,
@@ -292,6 +293,7 @@ func (v *PlotView) Layout(ctx context.Context, gtx layout.Context, th *material.
 						stockplot.LayoutQuoteField(
 							v.AssetData,
 							quote,
+							bidAsk,
 							gtx.Constraints.Min,
 							gtx,
 							th,

@@ -137,46 +137,30 @@ func (v *IndicatorsView) ConfirmClicked() bool {
 
 func (v *IndicatorsView) Layout(th *material.Theme, gtx layout.Context, plotIndex int) layout.Dimensions {
 	v.handleInput(gtx, plotIndex)
-	return layout.Flex{
-		Axis: layout.Vertical,
-	}.Layout(gtx,
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return Frame{InnerMargin: v.Margin / 2, OuterMargin: v.Margin, BorderWidth: 1, BorderColor: th.Palette.ContrastBg, BackgroundColor: th.Palette.Bg}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return material.List(th, &v.configList).Layout(gtx, 1, func(gtx layout.Context, index int) layout.Dimensions {
-					v.configChildren = v.configChildren[:0]
-					v.configChildren = append(v.configChildren,
-						layout.Rigid(heading(th, "Indicator Settings").Layout),
-					)
-					for i := range v.indicatorConfig[plotIndex] {
-						v.configChildren = v.appendIndicatorLayout(
-							th,
-							gtx,
-							v.indicatorConfigChild(th, &v.indicatorConfig[plotIndex][i]),
-							v.configChildren)
-					}
-					v.configChildren = v.appendIndicatorLayout(
-						th,
-						gtx,
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return material.Button(th, &v.buttonAdd, "Add").Layout(gtx)
-						}),
-						v.configChildren)
-					return layout.Flex{Axis: layout.Vertical}.Layout(gtx, v.configChildren...)
-				},
-				)
-			})
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Right: v.Margin, Bottom: v.Margin, Left: v.Margin}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{}.Layout(gtx,
-					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-						return material.Button(th, &v.buttonContinue, "Done").Layout(gtx)
-					}),
-				)
-			})
+	return layoutConfirmationFrame(th, v.Margin, gtx, &v.buttonContinue, func(gtx layout.Context) layout.Dimensions {
+		return material.List(th, &v.configList).Layout(gtx, 1, func(gtx layout.Context, index int) layout.Dimensions {
+			v.configChildren = v.configChildren[:0]
+			v.configChildren = append(v.configChildren,
+				layout.Rigid(heading(th, "Indicator Settings").Layout),
+			)
+			for i := range v.indicatorConfig[plotIndex] {
+				v.configChildren = v.appendIndicatorLayout(
+					th,
+					gtx,
+					v.indicatorConfigChild(th, &v.indicatorConfig[plotIndex][i]),
+					v.configChildren)
+			}
+			v.configChildren = v.appendIndicatorLayout(
+				th,
+				gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return material.Button(th, &v.buttonAdd, "Add").Layout(gtx)
+				}),
+				v.configChildren)
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, v.configChildren...)
 		},
-		),
-	)
+		)
+	})
 }
 
 func (v *IndicatorsView) handleInput(gtx layout.Context, plotIndex int) {
@@ -235,8 +219,11 @@ func (v *IndicatorsView) validate(plotIndex int) bool {
 }
 
 func (v *IndicatorsView) layoutConfigEntry(th *material.Theme, gtx layout.Context, ind *IndicatorView, w layout.Widget) layout.Dimensions {
-	return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-		layout.Flexed(0.5, func(gtx layout.Context) layout.Dimensions {
+	return layoutLeftRightWidgets(
+		th,
+		v.Margin,
+		gtx,
+		func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Spacing: layout.SpaceStart, Alignment: layout.Middle}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Inset{Left: v.ItemMargin, Right: v.TextMargin, Bottom: v.TextMargin}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -244,7 +231,7 @@ func (v *IndicatorsView) layoutConfigEntry(th *material.Theme, gtx layout.Contex
 					})
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return material.Body1(th, "Color name:").Layout(gtx)
+					return material.Body1(th, "Color:").Layout(gtx)
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Inset{Right: v.TextMargin, Left: v.TextMargin}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -252,11 +239,10 @@ func (v *IndicatorsView) layoutConfigEntry(th *material.Theme, gtx layout.Contex
 					})
 				}),
 			)
-		}),
-		layout.Flexed(0.5, func(gtx layout.Context) layout.Dimensions {
+		},
+		func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Bottom: v.TextMargin}.Layout(gtx, w)
 		},
-		),
 	)
 }
 

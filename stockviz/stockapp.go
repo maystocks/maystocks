@@ -132,7 +132,7 @@ func (a *StockApp) Initialize(ctx context.Context, svr map[stockval.BrokerId]sto
 }
 
 func (a *StockApp) reloadConfiguration(ctx context.Context) error {
-	appConfig, err := a.config.Copy()
+	appConfig, err := a.config.Copy(false)
 	if err != nil {
 		return err
 	}
@@ -231,7 +231,7 @@ func (a *StockApp) saveConfiguration() error {
 	appConfig.WindowConfig[0].Size.X = int(a.windows[0].size.X)
 	appConfig.WindowConfig[0].Size.Y = int(a.windows[0].size.Y)
 	a.configView.GetBrokerConfig(appConfig)
-	return a.config.Unlock(appConfig)
+	return a.config.Unlock(appConfig, false)
 }
 
 func (a *StockApp) saveAndReloadConfiguration(ctx context.Context) {

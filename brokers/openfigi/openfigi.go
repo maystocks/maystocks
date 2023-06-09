@@ -285,7 +285,7 @@ func (rq *openFigiRequester) executeOpenFigiMappingQuery(ctx context.Context, ma
 }
 
 func (rq *openFigiRequester) ReadConfig(c config.Config) error {
-	appConfig, err := c.Copy()
+	appConfig, err := c.Copy(false)
 	if err != nil {
 		return err
 	}
@@ -295,7 +295,7 @@ func (rq *openFigiRequester) ReadConfig(c config.Config) error {
 }
 
 func IsValidConfig(c config.Config) bool {
-	appConfig, err := c.Copy()
+	appConfig, err := c.Copy(false)
 	if err != nil {
 		return false
 	}

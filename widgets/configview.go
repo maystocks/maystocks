@@ -7,7 +7,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"image"
-	"image/color"
 	"maystocks/config"
 	"maystocks/stockval"
 	"sort"
@@ -76,21 +75,26 @@ func NewConfigView(defaultBrokerConfig map[stockval.BrokerId]config.BrokerConfig
 		} else {
 			v.brokerConfig[i].note = "at least one broker needs to be configured"
 		}
+		v.brokerConfig[i].apiKeyTextField.SingleLine = true
+		v.brokerConfig[i].apiSecretTextField.SingleLine = true
 	}
 	return &v
 }
 
+// Call from same goroutine as Layout
 func (v *ConfigView) GetWindowConfig(appConfig *config.AppConfig) {
 	appConfig.WindowConfig[0].NumPlots = v.numPlots[0]
 	appConfig.Sanitize() // create default plot configurations if needed
 }
 
+// Call from same goroutine as Layout
 func (v *ConfigView) SetWindowConfig(appConfig *config.AppConfig) {
 	v.numPlots[0] = appConfig.WindowConfig[0].NumPlots
 	// TODO use dynamic window count
 	v.plotCountEnum.Value = v.numPlots[0].String()
 }
 
+// Call from same goroutine as Layout
 func (v *ConfigView) GetBrokerConfig(appConfig *config.AppConfig) {
 	for i := range v.brokerConfig {
 		c := appConfig.BrokerConfig[v.brokerConfig[i].BrokerId]
@@ -100,6 +104,7 @@ func (v *ConfigView) GetBrokerConfig(appConfig *config.AppConfig) {
 	}
 }
 
+// Call from same goroutine as Layout
 func (v *ConfigView) SetBrokerConfig(appConfig *config.AppConfig) {
 	for i := range v.brokerConfig {
 		c, exists := appConfig.BrokerConfig[v.brokerConfig[i].BrokerId]
@@ -136,129 +141,113 @@ func (v *ConfigView) Layout(th *material.Theme, gtx layout.Context) layout.Dimen
 		}
 	}
 
-	return layout.Flex{
-		Axis: layout.Vertical,
-	}.Layout(gtx,
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return Frame{InnerMargin: v.Margin / 2, OuterMargin: v.Margin, BorderWidth: 1, BorderColor: th.Palette.ContrastBg, BackgroundColor: th.Palette.Bg}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return material.List(th, &v.configList).Layout(gtx, 1, func(gtx layout.Context, index int) layout.Dimensions {
-					v.configChildren = v.configChildren[:0]
-					v.configChildren = append(v.configChildren,
-						layout.Rigid(heading(th, "Plot Settings").Layout),
-						layout.Rigid(divider(th, v.Margin).Layout),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return v.layoutConfigEntry(th, gtx, "Number of plots:", v.Margin, func(gtx layout.Context) layout.Dimensions {
-								return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-										return material.RadioButton(
-											th,
-											&v.plotCountEnum,
-											"(1,1)",
-											"1",
-										).Layout(gtx)
-									}),
-									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-										return material.RadioButton(
-											th,
-											&v.plotCountEnum,
-											"(2,1)",
-											"1 row 2 cols",
-										).Layout(gtx)
-									}),
-									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-										return material.RadioButton(
-											th,
-											&v.plotCountEnum,
-											"(1,2)",
-											"2 rows 1 col",
-										).Layout(gtx)
-									}),
-									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-										return material.RadioButton(
-											th,
-											&v.plotCountEnum,
-											"(2,2)",
-											"2 rows 2 cols",
-										).Layout(gtx)
-									}),
-									// TODO due to api limits, these are not working very well
-									/*									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-																			return material.RadioButton(
-																				th,
-																				&v.plotCountEnum,
-																				"(2,3)",
-																				"2 rows 3 cols",
-																			).Layout(gtx)
-																		}),
-																		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-																			return material.RadioButton(
-																				th,
-																				&v.plotCountEnum,
-																				"(3,3)",
-																				"3 rows 3 cols",
-																			).Layout(gtx)
-																		}),*/
-								)
-							})
-						}),
-						layout.Rigid(divider(th, v.Margin).Layout),
-						layout.Rigid(heading(th, "Support this Project").Layout),
-						layout.Rigid(divider(th, v.Margin).Layout),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return v.layoutConfigEntry(th, gtx, "Your donations help to fund further development!", v.Margin, func(gtx layout.Context) layout.Dimensions {
-								return layout.Flex{}.Layout(gtx,
-									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-										if len(v.paHash) == 0 {
-											hash := sha256.Sum256([]byte(v.paButton.Url()))
-											v.paHash = hex.EncodeToString(hash[:])
-										}
-										if v.paHash == "82863cd5e5cda4aa73a465912ecbe0e64e29b8c322e7d2998fe530b08afc7c51" {
-											return v.paButton.Layout(th, gtx)
-										} else {
-											return layout.Dimensions{}
-										}
-									}))
-							})
-						}),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return v.layoutConfigEntry(th, gtx, "", v.Margin, func(gtx layout.Context) layout.Dimensions {
-								return layout.Flex{}.Layout(gtx,
-									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-										if len(v.ppHash) == 0 {
-											hash := sha256.Sum256([]byte(v.ppButton.Url()))
-											v.ppHash = hex.EncodeToString(hash[:])
-										}
-										if v.ppHash == "78f09dff6b492d6eff4d1ab3a7f25f7830b88d4ddc5e2cc3b61cec3743f03667" {
-											return v.ppButton.Layout(th, gtx)
-										} else {
-											return layout.Dimensions{}
-										}
-									}))
-							})
-						}),
-						layout.Rigid(divider(th, v.Margin).Layout),
-						layout.Rigid(heading(th, "Broker Settings").Layout),
-						layout.Rigid(subHeading(th, "(changes require restart)").Layout),
-					)
-					for i := range v.brokerConfig {
-						v.configChildren = v.appendBrokerLayout(th, gtx, &v.brokerConfig[i], v.configChildren)
-					}
-					return layout.Flex{Axis: layout.Vertical}.Layout(gtx, v.configChildren...)
-				},
-				)
-			})
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Right: v.Margin, Bottom: v.Margin, Left: v.Margin}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{}.Layout(gtx,
-					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-						return material.Button(th, &v.buttonContinue, "Done").Layout(gtx)
-					}),
-				)
-			})
+	return layoutConfirmationFrame(th, v.Margin, gtx, &v.buttonContinue, func(gtx layout.Context) layout.Dimensions {
+		return material.List(th, &v.configList).Layout(gtx, 1, func(gtx layout.Context, index int) layout.Dimensions {
+			v.configChildren = v.configChildren[:0]
+			v.configChildren = append(v.configChildren,
+				layout.Rigid(heading(th, "Plot Settings").Layout),
+				layout.Rigid(divider(th, v.Margin).Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layoutLabelWidget(th, v.Margin, gtx, "Number of plots:", func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return material.RadioButton(
+									th,
+									&v.plotCountEnum,
+									"(1,1)",
+									"1",
+								).Layout(gtx)
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return material.RadioButton(
+									th,
+									&v.plotCountEnum,
+									"(2,1)",
+									"1 row 2 cols",
+								).Layout(gtx)
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return material.RadioButton(
+									th,
+									&v.plotCountEnum,
+									"(1,2)",
+									"2 rows 1 col",
+								).Layout(gtx)
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return material.RadioButton(
+									th,
+									&v.plotCountEnum,
+									"(2,2)",
+									"2 rows 2 cols",
+								).Layout(gtx)
+							}),
+							// TODO due to api limits, these are not working very well
+							/*									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+																	return material.RadioButton(
+																		th,
+																		&v.plotCountEnum,
+																		"(2,3)",
+																		"2 rows 3 cols",
+																	).Layout(gtx)
+																}),
+																layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+																	return material.RadioButton(
+																		th,
+																		&v.plotCountEnum,
+																		"(3,3)",
+																		"3 rows 3 cols",
+																	).Layout(gtx)
+																}),*/
+						)
+					})
+				}),
+				layout.Rigid(divider(th, v.Margin).Layout),
+				layout.Rigid(heading(th, "Support this Project").Layout),
+				layout.Rigid(divider(th, v.Margin).Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layoutLabelWidget(th, v.Margin, gtx, "Your donations help to fund further development!", func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								if len(v.paHash) == 0 {
+									hash := sha256.Sum256([]byte(v.paButton.Url()))
+									v.paHash = hex.EncodeToString(hash[:])
+								}
+								if v.paHash == "82863cd5e5cda4aa73a465912ecbe0e64e29b8c322e7d2998fe530b08afc7c51" {
+									return v.paButton.Layout(th, gtx)
+								} else {
+									return layout.Dimensions{}
+								}
+							}))
+					})
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layoutLabelWidget(th, v.Margin, gtx, "", func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								if len(v.ppHash) == 0 {
+									hash := sha256.Sum256([]byte(v.ppButton.Url()))
+									v.ppHash = hex.EncodeToString(hash[:])
+								}
+								if v.ppHash == "78f09dff6b492d6eff4d1ab3a7f25f7830b88d4ddc5e2cc3b61cec3743f03667" {
+									return v.ppButton.Layout(th, gtx)
+								} else {
+									return layout.Dimensions{}
+								}
+							}))
+					})
+				}),
+				layout.Rigid(divider(th, v.Margin).Layout),
+				layout.Rigid(heading(th, "Broker Settings").Layout),
+				layout.Rigid(subHeading(th, "(changes require restart)").Layout),
+			)
+			for i := range v.brokerConfig {
+				v.configChildren = v.appendBrokerLayout(th, gtx, &v.brokerConfig[i], v.configChildren)
+			}
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, v.configChildren...)
 		},
-		),
-	)
+		)
+	})
 }
 
 func (v *ConfigView) validate() bool {
@@ -279,55 +268,24 @@ func (v *ConfigView) validate() bool {
 	return hasValidBroker
 }
 
-func (v *ConfigView) layoutConfigEntry(th *material.Theme, gtx layout.Context, label string, margin unit.Dp, w layout.Widget) layout.Dimensions {
-	return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-		layout.Flexed(0.5, func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Spacing: layout.SpaceStart}.Layout(gtx,
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return layout.Inset{Right: margin * 2, Bottom: margin}.Layout(gtx, material.Body1(th, label).Layout)
-				}))
-		}),
-		layout.Flexed(0.5, func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Bottom: margin}.Layout(gtx, w)
-		},
-		),
-	)
-}
-
 func (v *ConfigView) appendBrokerLayout(th *material.Theme, gtx layout.Context, b *BrokerView, children []layout.FlexChild) []layout.FlexChild {
 	children = append(children, layout.Rigid(divider(th, v.Margin).Layout))
 	children = append(children,
 		v.linkChild(th, &b.registrationLink, ""))
-	children = append(children,
-		v.textConfigChild(th, &b.apiKeyTextField, &b.registrationLink, string(b.BrokerId)+" API key:", string(b.BrokerId)+" key", b.note, b.highlightNote))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return layoutConfigChild(th, v.Margin, gtx, &b.apiKeyTextField, string(b.BrokerId)+" API key:", string(b.BrokerId)+" key", b.note, b.highlightNote)
+	}))
 	if b.UseApiSecret {
-		children = append(children,
-			v.textConfigChild(th, &b.apiSecretTextField, nil, string(b.BrokerId)+" API secret:", string(b.BrokerId)+" secret", "", false))
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layoutConfigChild(th, v.Margin, gtx, &b.apiSecretTextField, string(b.BrokerId)+" API secret:", string(b.BrokerId)+" secret", "", false)
+		}))
 	}
 	return children
 }
 
-func (v *ConfigView) textConfigChild(th *material.Theme, field *component.TextField, link *LinkButton, label string, hint string, note string, highlightNote bool) layout.FlexChild {
-	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-		return v.layoutConfigEntry(th, gtx, label, v.Margin, func(gtx layout.Context) layout.Dimensions {
-			noteLabel := material.Body2(th, note)
-			if highlightNote {
-				// TODO use theme
-				noteLabel.Color = color.NRGBA{R: 255, A: 255}
-			}
-			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return field.Layout(gtx, th, hint)
-				}),
-				layout.Rigid(noteLabel.Layout),
-			)
-		})
-	})
-}
-
 func (v *ConfigView) linkChild(th *material.Theme, link *LinkButton, label string) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-		return v.layoutConfigEntry(th, gtx, label, 0, func(gtx layout.Context) layout.Dimensions {
+		return layoutLabelWidget(th, 0, gtx, label, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return link.Layout(th, gtx)

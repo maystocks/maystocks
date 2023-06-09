@@ -197,6 +197,6 @@ func newAlpacaConfig(dataUrl string, tradingUrl string) config.Config {
 	brokerConfig.DataUrl = dataUrl
 	brokerConfig.PaperTradingUrl = tradingUrl
 	appConfig.BrokerConfig[GetBrokerId()] = brokerConfig
-	_ = c.Unlock(appConfig)
+	_ = c.Unlock(appConfig, true)
 	return c
 }

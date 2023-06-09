@@ -185,6 +185,6 @@ func newFinnhubConfig(dataUrl string) config.Config {
 	brokerConfig := appConfig.BrokerConfig[GetBrokerId()]
 	brokerConfig.DataUrl = dataUrl
 	appConfig.BrokerConfig[GetBrokerId()] = brokerConfig
-	_ = c.Unlock(appConfig)
+	_ = c.Unlock(appConfig, true)
 	return c
 }
