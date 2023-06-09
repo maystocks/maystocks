@@ -40,8 +40,9 @@ type EncryptedConfig struct {
 }
 
 type VersionConfig struct {
-	FileVersion int
-	Encrypted   bool `yaml:",omitempty"`
+	FileVersion   int
+	Encrypted     bool   `yaml:",omitempty"`
+	PlainPassword string `yaml:",omitempty"`
 }
 
 func NewGlobalConfig() Config {
@@ -118,6 +119,7 @@ func (g *GlobalConfig) createEncryptionKey(salt []byte) ([]byte, error) {
 	if len(g.encryptionPw) == 0 {
 		return nil, errors.New("missing encryption password")
 	}
+	// Parameters used from example at https://pkg.go.dev/golang.org/x/crypto/argon2#IDKey
 	return argon2.IDKey([]byte(g.encryptionPw), salt, 1, 64*1024, 4, 32), nil
 }
 
@@ -159,6 +161,9 @@ func (g *GlobalConfig) read() error {
 			g.version.FileVersion,
 			configFileVersion)
 	}
+	if len(g.version.PlainPassword) > 0 {
+		g.SetEncryptionPassword(g.version.PlainPassword)
+	}
 	if g.version.Encrypted && g.hasEncryptionPw() {
 		var encryptedConfig EncryptedConfig
 		err = yaml.Unmarshal(file, &encryptedConfig)
@@ -167,7 +172,7 @@ func (g *GlobalConfig) read() error {
 		}
 		salt, err := base64.StdEncoding.DecodeString(encryptedConfig.Salt)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to decode salt: %v", err)
 		}
 		key, err := g.createEncryptionKey(salt)
 		if err != nil {
@@ -183,11 +188,11 @@ func (g *GlobalConfig) read() error {
 		}
 		iv, err := base64.StdEncoding.DecodeString(encryptedConfig.IV)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to decode iv: %v", err)
 		}
 		data, err := base64.StdEncoding.DecodeString(encryptedConfig.Data)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to decode data: %v", err)
 		}
 		file, err = gcm.Open(nil, iv, data, nil)
 		if err != nil {

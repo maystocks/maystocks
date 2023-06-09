@@ -32,6 +32,7 @@ const (
 	StateNewPassword
 	StateInitialSettings
 	StateEnterPassword
+	StateInitDone
 )
 
 type InitApp struct {
@@ -119,24 +120,27 @@ func (a *InitApp) Run(ctx context.Context) {
 	err := a.reloadConfiguration()
 	if err != nil || !a.hasEncryptedConfig {
 		a.uiState = StateNewPassword
-	} else {
-		// Skip configuration states
+	} else if !a.licenseConfirmed { // either license was not confirmed, or encryption pw is missing
 		a.uiState = StateEnterPassword
+	} else {
+		a.uiState = StateInitDone
 	}
-	a.createWindows()
-	err = a.handleEvents(ctx)
-	if err != nil {
-		log.Printf("terminating with error: %v", err)
-	}
-	a.terminate()
-	err = a.reloadConfiguration()
-	if err != nil {
-		log.Fatalf("initialization failed: %v", err)
+
+	if a.uiState != StateInitDone {
+		a.createWindows()
+		err = a.handleEvents(ctx)
+		if err != nil {
+			log.Printf("terminating with error: %v", err)
+		}
+		a.terminate()
+		err = a.reloadConfiguration()
+		if err != nil {
+			log.Fatalf("initialization failed: %v", err)
+		}
 	}
 	if !a.licenseConfirmed || !a.hasEncryptedConfig || len(a.stockRequester) == 0 {
 		log.Fatal("initialization failed: missing initialization data")
 	}
-
 	// Start main app after initial configuration.
 	s := stockviz.NewStockApp(a.config)
 	err = s.Initialize(ctx, a.stockRequester, a.defaultBroker)
