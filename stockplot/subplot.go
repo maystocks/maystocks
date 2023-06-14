@@ -42,6 +42,7 @@ type SubPlot struct {
 	hasInitialCandleY bool
 	hasInitialQuoteY  bool
 	hasInitialRangeY  bool
+	fixedZeroValueY   bool
 	nextBaseValueY    float64
 	nextValueRangeY   float64
 	maxDecimalPlaces  int

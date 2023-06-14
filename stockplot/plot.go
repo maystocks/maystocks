@@ -85,6 +85,7 @@ func NewPlot(t *widgets.PlotTheme, r candles.CandleResolution, sx stockval.PlotS
 				zoomValueY:       1,
 				maxDecimalPlaces: 0,
 				textPrecision:    0,
+				fixedZeroValueY:  true,
 			},
 		},
 	}
@@ -333,9 +334,11 @@ func (plot *Plot) handleInput(gtx layout.Context) {
 				} else if e.Type == pointer.Drag {
 					posDelta := plot.pointerPressPos.Sub(e.Position)
 					plot.zeroValueX += plot.valueGridX / float64(plot.frame.pxGridX) * float64(posDelta.X)
-					s.zeroValueY -= s.valueGridY / float64(s.frame.pxGridY) * float64(posDelta.Y)
-					if s.zeroValueY < 0 {
-						s.zeroValueY = 0
+					if !s.fixedZeroValueY {
+						s.zeroValueY -= s.valueGridY / float64(s.frame.pxGridY) * float64(posDelta.Y)
+						if s.zeroValueY < 0 {
+							s.zeroValueY = 0
+						}
 					}
 					plot.pointerPressPos = e.Position
 				} else if e.Type == pointer.Scroll {
