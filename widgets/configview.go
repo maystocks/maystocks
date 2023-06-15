@@ -32,18 +32,23 @@ type BrokerView struct {
 }
 
 type ConfigView struct {
-	configList     widget.List
-	plotCountEnum  widget.Enum
-	buttonContinue widget.Clickable
-	confirmed      bool
-	Margin         unit.Dp
-	ppHash         string
-	paHash         string
-	configChildren []layout.FlexChild
-	brokerConfig   []BrokerView
-	numPlots       []image.Point
-	ppButton       LinkButton
-	paButton       LinkButton
+	configList      widget.List
+	plotCountEnum   widget.Enum
+	buttonContinue  widget.Clickable
+	buttonCancel    widget.Clickable
+	confirmed       bool
+	Margin          unit.Dp
+	ppHash          string
+	paHash          string
+	configChildren  []layout.FlexChild
+	brokerConfig    []BrokerView
+	numPlots        []image.Point
+	ppButton        LinkButton
+	paButton        LinkButton
+	changePwButton  widget.Clickable
+	encryptionSetup config.EncryptionSetup
+	pwCreatorView   *PasswordCreatorView
+	forceSave       bool
 }
 
 const (
@@ -51,16 +56,17 @@ const (
 	patreonUrl = "https://www.patreon.com/maystocks"
 )
 
-func NewConfigView(defaultBrokerConfig map[stockval.BrokerId]config.BrokerConfig) *ConfigView {
+func NewConfigView(defaultBrokerConfig map[stockval.BrokerId]config.BrokerConfig, encryptionSetup config.EncryptionSetup) *ConfigView {
 	v := ConfigView{
 		configList: widget.List{
 			List: layout.List{
 				Axis: layout.Vertical,
 			},
 		},
-		Margin:       DefaultMargin,
-		brokerConfig: make([]BrokerView, len(defaultBrokerConfig)),
-		numPlots:     make([]image.Point, 1),
+		Margin:          DefaultMargin,
+		brokerConfig:    make([]BrokerView, len(defaultBrokerConfig)),
+		numPlots:        make([]image.Point, 1),
+		encryptionSetup: encryptionSetup,
 	}
 	v.ppButton.SetUrl(paypalUrl, "PayPal")
 	v.paButton.SetUrl(patreonUrl, "Patreon")
@@ -95,17 +101,18 @@ func (v *ConfigView) SetWindowConfig(appConfig *config.AppConfig) {
 }
 
 // Call from same goroutine as Layout
-func (v *ConfigView) GetBrokerConfig(appConfig *config.AppConfig) {
+func (v *ConfigView) UpdateConfigFromUi(appConfig *config.AppConfig) bool {
 	for i := range v.brokerConfig {
 		c := appConfig.BrokerConfig[v.brokerConfig[i].BrokerId]
 		c.ApiKey = v.brokerConfig[i].ApiKey
 		c.ApiSecret = v.brokerConfig[i].ApiSecret
 		appConfig.BrokerConfig[v.brokerConfig[i].BrokerId] = c
 	}
+	return v.forceSave
 }
 
 // Call from same goroutine as Layout
-func (v *ConfigView) SetBrokerConfig(appConfig *config.AppConfig) {
+func (v *ConfigView) UpdateUiFromConfig(appConfig *config.AppConfig) {
 	for i := range v.brokerConfig {
 		c, exists := appConfig.BrokerConfig[v.brokerConfig[i].BrokerId]
 		if exists {
@@ -140,8 +147,27 @@ func (v *ConfigView) Layout(th *material.Theme, gtx layout.Context) layout.Dimen
 			v.confirmed = true
 		}
 	}
+	if v.changePwButton.Clicked() {
+		v.pwCreatorView = NewPasswordCreatorView(true)
+	}
+	if v.pwCreatorView != nil {
+		if v.pwCreatorView.ConfirmClicked() {
+			if len(v.pwCreatorView.confirmedExistingPw) > 0 && v.encryptionSetup.IsEncryptionPassword(v.pwCreatorView.confirmedExistingPw) {
+				v.encryptionSetup.SetEncryptionPassword(v.pwCreatorView.confirmedNewPw)
+				v.forceSave = true
+				v.pwCreatorView = nil
+			} else {
+				v.pwCreatorView.SetErrorNoteCurPw("Current password is not valid")
+			}
+		} else if v.pwCreatorView.CancelClicked() {
+			v.pwCreatorView = nil
+		}
+		if v.pwCreatorView != nil {
+			return v.pwCreatorView.Layout(th, gtx)
+		}
+	}
 
-	return layoutConfirmationFrame(th, v.Margin, gtx, &v.buttonContinue, func(gtx layout.Context) layout.Dimensions {
+	return layoutConfirmationFrame(th, v.Margin, gtx, &v.buttonContinue, nil, func(gtx layout.Context) layout.Dimensions {
 		return material.List(th, &v.configList).Layout(gtx, 1, func(gtx layout.Context, index int) layout.Dimensions {
 			v.configChildren = v.configChildren[:0]
 			v.configChildren = append(v.configChildren,
@@ -244,6 +270,19 @@ func (v *ConfigView) Layout(th *material.Theme, gtx layout.Context) layout.Dimen
 			for i := range v.brokerConfig {
 				v.configChildren = v.appendBrokerLayout(th, gtx, &v.brokerConfig[i], v.configChildren)
 			}
+			v.configChildren = append(v.configChildren,
+				layout.Rigid(divider(th, v.Margin).Layout),
+				layout.Rigid(heading(th, "Secure configuration data").Layout),
+				layout.Rigid(divider(th, v.Margin).Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layoutLabelWidget(th, v.Margin, gtx, "Change encryption password", func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return material.Button(th, &v.changePwButton, "Change password").Layout(gtx)
+							}))
+					})
+				}),
+			)
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, v.configChildren...)
 		},
 		)

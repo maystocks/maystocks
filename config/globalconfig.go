@@ -64,6 +64,12 @@ func (g *GlobalConfig) SetEncryptionPassword(pw string) {
 	g.encryptionPw = pw
 }
 
+func (g *GlobalConfig) IsEncryptionPassword(pw string) bool {
+	g.encryptionPwMutex.Lock()
+	defer g.encryptionPwMutex.Unlock()
+	return g.encryptionPw == pw
+}
+
 // Locks access to the configuration and returns a copy which can be modified.
 // Unlock needs to be called afterwards, if no error was returned.
 func (g *GlobalConfig) Lock() (*AppConfig, error) {

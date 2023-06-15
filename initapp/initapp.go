@@ -55,9 +55,9 @@ func NewInitApp(c config.Config) *InitApp {
 		stockRequester:  make(map[stockval.BrokerId]stockapi.StockValueRequester),
 		config:          c,
 		licenseView:     widgets.NewLicenseView(),
-		pwCreatorView:   widgets.NewPasswordCreatorView(),
+		pwCreatorView:   widgets.NewPasswordCreatorView(false),
 		pwRequesterView: widgets.NewPasswordRequesterView(),
-		configView:      widgets.NewConfigView(config.NewBrokerConfigMap()),
+		configView:      widgets.NewConfigView(config.NewBrokerConfigMap(), c),
 	}
 }
 
@@ -99,7 +99,7 @@ func (a *InitApp) reloadConfiguration() error {
 		a.stockRequester[finnhub.GetBrokerId()] = r
 		a.defaultBroker = finnhub.GetBrokerId()
 	}
-	a.configView.SetBrokerConfig(&appConfig)
+	a.configView.UpdateUiFromConfig(&appConfig)
 	a.configView.SetWindowConfig(&appConfig)
 
 	return nil
@@ -112,8 +112,8 @@ func (a *InitApp) saveConfiguration() error {
 	}
 	appConfig.LicenseConfirmed = a.licenseConfirmed
 	a.configView.GetWindowConfig(appConfig)
-	a.configView.GetBrokerConfig(appConfig)
-	return a.config.Unlock(appConfig, a.forceNewConfig || !a.hasEncryptedConfig)
+	forceWriting := a.configView.UpdateConfigFromUi(appConfig) || a.forceNewConfig || !a.hasEncryptedConfig
+	return a.config.Unlock(appConfig, forceWriting)
 }
 
 func (a *InitApp) Run(ctx context.Context) {
@@ -204,14 +204,14 @@ func (a *InitApp) handleEvents(ctx context.Context) error {
 				a.pwRequesterView.Layout(th, gtx)
 				if a.pwRequesterView.ConfirmClicked() {
 					pw := a.pwRequesterView.GetConfirmedPassword()
-					if len(pw) == 0 {
-						return errors.New("invalid password")
+					if len(pw) == 0 { // Reset configuration data
+						a.forceNewConfig = true
+						a.uiState = StateInitialSettings
 					}
 					a.config.SetEncryptionPassword(pw)
 					err := a.reloadConfiguration()
 					if err != nil || !a.licenseConfirmed {
-						a.forceNewConfig = true
-						a.uiState = StateInitialSettings
+						a.pwRequesterView.SetErrorNote("invalid password")
 					} else {
 						a.initWindow.Perform(system.ActionClose)
 					}

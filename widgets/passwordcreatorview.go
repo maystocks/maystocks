@@ -12,28 +12,38 @@ import (
 )
 
 type PasswordCreatorView struct {
-	passwordList         widget.List
-	focusUpdated         bool
-	confirmed            bool
-	buttonContinue       widget.Clickable
-	passwordTextField    component.TextField
-	password2ndTextField component.TextField
-	note                 string
-	Margin               unit.Dp
-	confirmedPassword    string
+	passwordList        widget.List
+	focusUpdated        bool
+	confirmed           bool
+	cancelled           bool
+	requestExisting     bool
+	buttonContinue      widget.Clickable
+	buttonCancel        widget.Clickable
+	existingPwTextField component.TextField
+	newPwTextField      component.TextField
+	newPw2ndTextField   component.TextField
+	noteNewPw           string
+	noteCurPw           string
+	Margin              unit.Dp
+	confirmedNewPw      string
+	confirmedExistingPw string
 }
 
-func NewPasswordCreatorView() *PasswordCreatorView {
+func NewPasswordCreatorView(requestExisting bool) *PasswordCreatorView {
 	v := PasswordCreatorView{
 		passwordList: widget.List{
 			List: layout.List{
 				Axis: layout.Vertical,
 			},
 		},
-		passwordTextField: component.TextField{
+		requestExisting: requestExisting,
+		existingPwTextField: component.TextField{
 			Editor: widget.Editor{Submit: true, SingleLine: true, MaxLen: 128, Mask: '·'},
 		},
-		password2ndTextField: component.TextField{
+		newPwTextField: component.TextField{
+			Editor: widget.Editor{Submit: true, SingleLine: true, MaxLen: 128, Mask: '·'},
+		},
+		newPw2ndTextField: component.TextField{
 			Editor: widget.Editor{Submit: true, SingleLine: true, MaxLen: 128, Mask: '·'},
 		},
 		Margin: DefaultMargin,
@@ -49,57 +59,105 @@ func (v *PasswordCreatorView) ConfirmClicked() bool {
 }
 
 // Call from same goroutine as Layout
+func (v *PasswordCreatorView) CancelClicked() bool {
+	c := v.cancelled
+	v.cancelled = false
+	return c
+}
+
+// Call from same goroutine as Layout
 func (v *PasswordCreatorView) GetConfirmedPassword() string {
-	return v.confirmedPassword
+	return v.confirmedNewPw
+}
+
+func (v *PasswordCreatorView) GetExistingPassword() string {
+	return v.confirmedExistingPw
 }
 
 func (v *PasswordCreatorView) submitPassword() {
 	if v.validate() {
 		v.confirmed = true
-		v.confirmedPassword = v.passwordTextField.Text()
+		v.confirmedExistingPw = v.existingPwTextField.Text()
+		v.confirmedNewPw = v.newPwTextField.Text()
 	}
 }
 
 func (v *PasswordCreatorView) Layout(th *material.Theme, gtx layout.Context) layout.Dimensions {
 	if !v.focusUpdated {
-		v.passwordTextField.Focus()
+		if v.requestExisting {
+			v.existingPwTextField.Focus()
+		} else {
+			v.newPwTextField.Focus()
+		}
 		v.focusUpdated = true
 	}
 	if v.buttonContinue.Clicked() {
 		v.submitPassword()
 	}
-	for _, evt := range v.passwordTextField.Events() {
+	if v.buttonCancel.Clicked() {
+		v.cancelled = true
+	}
+	for _, evt := range v.existingPwTextField.Events() {
 		switch evt.(type) {
 		case widget.ChangeEvent:
-			v.note = ""
+			v.noteNewPw = ""
 		case widget.SubmitEvent:
-			v.password2ndTextField.Focus()
+			v.newPwTextField.Focus()
 		}
 	}
-	for _, evt := range v.password2ndTextField.Events() {
+	for _, evt := range v.newPwTextField.Events() {
 		switch evt.(type) {
 		case widget.ChangeEvent:
-			v.note = ""
+			v.noteNewPw = ""
+		case widget.SubmitEvent:
+			v.newPw2ndTextField.Focus()
+		}
+	}
+	for _, evt := range v.newPw2ndTextField.Events() {
+		switch evt.(type) {
+		case widget.ChangeEvent:
+			v.noteNewPw = ""
 		case widget.SubmitEvent:
 			v.submitPassword()
 		}
 	}
 
-	return layoutConfirmationFrame(th, v.Margin, gtx, &v.buttonContinue, func(gtx layout.Context) layout.Dimensions {
+	var buttonCancel *widget.Clickable
+	if v.requestExisting {
+		buttonCancel = &v.buttonCancel
+	}
+	return layoutConfirmationFrame(th, v.Margin, gtx, &v.buttonContinue, buttonCancel, func(gtx layout.Context) layout.Dimensions {
 		return material.List(th, &v.passwordList).Layout(gtx, 1, func(gtx layout.Context, index int) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 				layout.Rigid(heading(th, "Secure configuration data").Layout),
 				layout.Rigid(subHeading(th, "The configuration data will be stored locally and encrypted using a password.").Layout),
 				layout.Rigid(divider(th, v.Margin).Layout),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					if v.requestExisting {
+						return layoutConfigChild(
+							th,
+							v.Margin,
+							gtx,
+							&v.existingPwTextField,
+							"Enter existing password:",
+							"Configuration data password",
+							v.noteCurPw,
+							true,
+						)
+					} else {
+						return layout.Dimensions{}
+					}
+				},
+				),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layoutConfigChild(
 						th,
 						v.Margin,
 						gtx,
-						&v.passwordTextField,
+						&v.newPwTextField,
 						"Enter new password:",
 						"Configuration data password",
-						v.note,
+						v.noteNewPw,
 						true,
 					)
 				},
@@ -109,7 +167,7 @@ func (v *PasswordCreatorView) Layout(th *material.Theme, gtx layout.Context) lay
 						th,
 						v.Margin,
 						gtx,
-						&v.password2ndTextField,
+						&v.newPw2ndTextField,
 						"Confirm new password:",
 						"Configuration data password",
 						"",
@@ -125,13 +183,31 @@ func (v *PasswordCreatorView) Layout(th *material.Theme, gtx layout.Context) lay
 	})
 }
 
+func (v *PasswordCreatorView) SetErrorNoteCurPw(n string) {
+	v.noteCurPw = n
+	v.confirmed = false
+	v.confirmedExistingPw = ""
+	v.confirmedNewPw = ""
+	v.focusUpdated = false
+	v.existingPwTextField.SetCaret(0, len(v.existingPwTextField.Text()))
+}
+
+func (v *PasswordCreatorView) SetErrorNoteNewPw(n string) {
+	v.noteNewPw = n
+	v.confirmed = false
+	v.confirmedExistingPw = ""
+	v.confirmedNewPw = ""
+	v.focusUpdated = false
+	v.newPwTextField.SetCaret(0, len(v.newPwTextField.Text()))
+}
+
 func (v *PasswordCreatorView) validate() bool {
-	if len(v.passwordTextField.Text()) < 6 {
-		v.note = "The minimum password length is 6 characters."
+	if len(v.newPwTextField.Text()) < 6 {
+		v.SetErrorNoteNewPw("The minimum password length is 6 characters.")
 		return false
 	}
-	if v.passwordTextField.Text() != v.password2ndTextField.Text() {
-		v.note = "Passwords do not match."
+	if v.newPwTextField.Text() != v.newPw2ndTextField.Text() {
+		v.SetErrorNoteNewPw("Passwords do not match.")
 		return false
 	}
 	return true

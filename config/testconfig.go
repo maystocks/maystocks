@@ -23,6 +23,11 @@ func (g *TestConfig) SetEncryptionPassword(pw string) {
 	// Not used with test config
 }
 
+func (g *TestConfig) IsEncryptionPassword(pw string) bool {
+	// Not used with test config
+	return false
+}
+
 func (t *TestConfig) Lock() (*AppConfig, error) {
 	return &t.appConfig, nil
 }

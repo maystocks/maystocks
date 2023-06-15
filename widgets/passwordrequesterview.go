@@ -73,7 +73,7 @@ func (v *PasswordRequesterView) Layout(th *material.Theme, gtx layout.Context) l
 		}
 	}
 
-	return layoutConfirmationFrame(th, v.Margin, gtx, &v.buttonContinue, func(gtx layout.Context) layout.Dimensions {
+	return layoutConfirmationFrame(th, v.Margin, gtx, &v.buttonContinue, nil, func(gtx layout.Context) layout.Dimensions {
 		return material.List(th, &v.passwordList).Layout(gtx, 1, func(gtx layout.Context, index int) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 				layout.Rigid(heading(th, "maystocks Startup").Layout),
@@ -98,9 +98,17 @@ func (v *PasswordRequesterView) Layout(th *material.Theme, gtx layout.Context) l
 	})
 }
 
+func (v *PasswordRequesterView) SetErrorNote(n string) {
+	v.note = n
+	v.confirmed = false
+	v.confirmedPassword = ""
+	v.focusUpdated = false
+	v.passwordTextField.SetCaret(0, len(v.passwordTextField.Text()))
+}
+
 func (v *PasswordRequesterView) validate() bool {
 	if len(v.passwordTextField.Text()) < 6 {
-		v.note = "The minimum password length is 6 characters."
+		v.SetErrorNote("The minimum password length is 6 characters.")
 		return false
 	}
 	return true

@@ -95,7 +95,7 @@ func NewStockApp(c config.Config) *StockApp {
 		addRemovePlotMutex: new(sync.Mutex),
 		terminateWg:        new(sync.WaitGroup),
 		config:             c,
-		configView:         widgets.NewConfigView(config.NewBrokerConfigMap()),
+		configView:         widgets.NewConfigView(config.NewBrokerConfigMap(), c),
 		indicatorsView:     widgets.NewIndicatorsView(),
 		messageField:       widgets.NewMessageField(),
 	}
@@ -204,7 +204,7 @@ func (a *StockApp) reloadConfiguration(ctx context.Context) error {
 			return true
 		})
 
-	a.configView.SetBrokerConfig(&appConfig)
+	a.configView.UpdateUiFromConfig(&appConfig)
 	a.configView.SetWindowConfig(&appConfig)
 	a.indicatorsView.SetIndicatorConfig(&appConfig)
 	a.windows[0].size.X = unit.Dp(appConfig.WindowConfig[0].Size.X)
@@ -230,8 +230,8 @@ func (a *StockApp) saveConfiguration() error {
 		})
 	appConfig.WindowConfig[0].Size.X = int(a.windows[0].size.X)
 	appConfig.WindowConfig[0].Size.Y = int(a.windows[0].size.Y)
-	a.configView.GetBrokerConfig(appConfig)
-	return a.config.Unlock(appConfig, false)
+	forceWriting := a.configView.UpdateConfigFromUi(appConfig)
+	return a.config.Unlock(appConfig, forceWriting)
 }
 
 func (a *StockApp) saveAndReloadConfiguration(ctx context.Context) {

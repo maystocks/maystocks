@@ -137,7 +137,7 @@ func (v *IndicatorsView) ConfirmClicked() bool {
 
 func (v *IndicatorsView) Layout(th *material.Theme, gtx layout.Context, plotIndex int) layout.Dimensions {
 	v.handleInput(gtx, plotIndex)
-	return layoutConfirmationFrame(th, v.Margin, gtx, &v.buttonContinue, func(gtx layout.Context) layout.Dimensions {
+	return layoutConfirmationFrame(th, v.Margin, gtx, &v.buttonContinue, nil, func(gtx layout.Context) layout.Dimensions {
 		return material.List(th, &v.configList).Layout(gtx, 1, func(gtx layout.Context, index int) layout.Dimensions {
 			v.configChildren = v.configChildren[:0]
 			v.configChildren = append(v.configChildren,

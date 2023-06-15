@@ -62,7 +62,7 @@ func layoutLabelWidget(th *material.Theme, margin unit.Dp, gtx layout.Context, t
 
 }
 
-func layoutConfirmationFrame(th *material.Theme, margin unit.Dp, gtx layout.Context, buttonContinue *widget.Clickable, w layout.Widget) layout.Dimensions {
+func layoutConfirmationFrame(th *material.Theme, margin unit.Dp, gtx layout.Context, buttonContinue *widget.Clickable, buttonCancel *widget.Clickable, w layout.Widget) layout.Dimensions {
 	return layout.Flex{
 		Axis: layout.Vertical,
 	}.Layout(gtx,
@@ -72,6 +72,20 @@ func layoutConfirmationFrame(th *material.Theme, margin unit.Dp, gtx layout.Cont
 			},
 			)
 		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if buttonCancel != nil {
+				return layout.Inset{Right: margin, Bottom: margin, Left: margin}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{}.Layout(gtx,
+						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+							return material.Button(th, buttonCancel, "Cancel").Layout(gtx)
+						}),
+					)
+				})
+			} else {
+				return layout.Dimensions{}
+			}
+		},
+		),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Right: margin, Bottom: margin, Left: margin}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{}.Layout(gtx,
