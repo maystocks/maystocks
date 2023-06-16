@@ -206,7 +206,7 @@ func (a *InitApp) handleEvents(ctx context.Context) error {
 					pw := a.pwRequesterView.GetConfirmedPassword()
 					if len(pw) == 0 { // Reset configuration data
 						a.forceNewConfig = true
-						a.uiState = StateInitialSettings
+						a.uiState = StateNewPassword
 					}
 					a.config.SetEncryptionPassword(pw)
 					err := a.reloadConfiguration()

@@ -134,7 +134,7 @@ func (v *PasswordCreatorView) Layout(th *material.Theme, gtx layout.Context) lay
 				layout.Rigid(divider(th, v.Margin).Layout),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					if v.requestExisting {
-						return layoutConfigChild(
+						return layoutLabelTextField(
 							th,
 							v.Margin,
 							gtx,
@@ -150,7 +150,7 @@ func (v *PasswordCreatorView) Layout(th *material.Theme, gtx layout.Context) lay
 				},
 				),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return layoutConfigChild(
+					return layoutLabelTextField(
 						th,
 						v.Margin,
 						gtx,
@@ -163,7 +163,7 @@ func (v *PasswordCreatorView) Layout(th *material.Theme, gtx layout.Context) lay
 				},
 				),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return layoutConfigChild(
+					return layoutLabelTextField(
 						th,
 						v.Margin,
 						gtx,

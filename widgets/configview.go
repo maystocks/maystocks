@@ -312,11 +312,11 @@ func (v *ConfigView) appendBrokerLayout(th *material.Theme, gtx layout.Context, 
 	children = append(children,
 		v.linkChild(th, &b.registrationLink, ""))
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-		return layoutConfigChild(th, v.Margin, gtx, &b.apiKeyTextField, string(b.BrokerId)+" API key:", string(b.BrokerId)+" key", b.note, b.highlightNote)
+		return layoutLabelTextField(th, v.Margin, gtx, &b.apiKeyTextField, string(b.BrokerId)+" API key:", string(b.BrokerId)+" key", b.note, b.highlightNote)
 	}))
 	if b.UseApiSecret {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layoutConfigChild(th, v.Margin, gtx, &b.apiSecretTextField, string(b.BrokerId)+" API secret:", string(b.BrokerId)+" secret", "", false)
+			return layoutLabelTextField(th, v.Margin, gtx, &b.apiSecretTextField, string(b.BrokerId)+" API secret:", string(b.BrokerId)+" secret", "", false)
 		}))
 	}
 	return children

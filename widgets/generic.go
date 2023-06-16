@@ -99,18 +99,22 @@ func layoutConfirmationFrame(th *material.Theme, margin unit.Dp, gtx layout.Cont
 	)
 }
 
-func layoutConfigChild(th *material.Theme, margin unit.Dp, gtx layout.Context, field *component.TextField, label string, hint string, note string, highlightNote bool) layout.Dimensions {
+func layoutTextFieldWithNote(th *material.Theme, gtx layout.Context, field *component.TextField, hint string, note string, highlightNote bool) layout.Dimensions {
+	noteLabel := material.Body2(th, note)
+	if highlightNote {
+		// TODO use theme
+		noteLabel.Color = color.NRGBA{R: 255, A: 255}
+	}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return field.Layout(gtx, th, hint)
+		}),
+		layout.Rigid(noteLabel.Layout),
+	)
+}
+
+func layoutLabelTextField(th *material.Theme, margin unit.Dp, gtx layout.Context, field *component.TextField, label string, hint string, note string, highlightNote bool) layout.Dimensions {
 	return layoutLabelWidget(th, margin, gtx, label, func(gtx layout.Context) layout.Dimensions {
-		noteLabel := material.Body2(th, note)
-		if highlightNote {
-			// TODO use theme
-			noteLabel.Color = color.NRGBA{R: 255, A: 255}
-		}
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return field.Layout(gtx, th, hint)
-			}),
-			layout.Rigid(noteLabel.Layout),
-		)
+		return layoutTextFieldWithNote(th, gtx, field, hint, note, highlightNote)
 	})
 }
