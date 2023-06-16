@@ -9,7 +9,7 @@ Note: THIS IS A PRE-ALPHA release!
 ### How to use
 
 You need a finnhub or alpaca account (or both) to retrieve stock market data.
-Enter key/secret during setup, they will be stored locally (in %APPDATA%/maystocks on Windows,
+Enter key/secret during setup, they will be encrypted using a password and stored locally (in %APPDATA%/maystocks on Windows,
 $HOME/Library/Application Support/maystocks on Mac).
 
 Currently, only US market data is supported.
