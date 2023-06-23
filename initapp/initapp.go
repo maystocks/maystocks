@@ -155,7 +155,7 @@ func (a *InitApp) Run(ctx context.Context) {
 func (a *InitApp) createWindows() {
 	a.initWindow = app.NewWindow(
 		app.Title(a.config.GetAppName()),
-		app.Size(unit.Dp(640), unit.Dp(480)),
+		app.Size(unit.Dp(800), unit.Dp(600)),
 	)
 	a.initWindow.Perform(system.ActionCenter)
 }

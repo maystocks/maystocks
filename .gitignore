@@ -24,3 +24,10 @@ Thumbs.db
 *.wmv
 
 .VSCodeCounter
+
+# release packages
+*.zip
+
+# binaries
+maystocks
+maystocks.exe
