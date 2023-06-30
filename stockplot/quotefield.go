@@ -21,7 +21,7 @@ func LayoutQuoteField(entry stockval.AssetData, quote stockval.QuoteData, bidAsk
 	macroName := op.Record(gtx.Ops)
 	lblName := material.H6(
 		th,
-		entry.Symbol+"\n"+stockval.TruncateDisplayName(entry.CompanyName),
+		stockval.TruncateDisplayName(entry.CompanyName),
 	)
 	lblName.Color = color.NRGBA{R: 255, G: 255, B: 255, A: 255}
 	lblName.Alignment = text.Start
