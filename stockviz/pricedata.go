@@ -17,18 +17,18 @@ import (
 )
 
 type PriceData struct {
-	Entry               stockval.AssetData
-	RealtimeData        *skipmap.Int64Map[*decimal.Big]
-	candles             map[candles.CandleResolution]CandleUpdater
-	candlesMutex        *sync.Mutex
-	quote               *stockval.QuoteData
-	quoteMutex          *sync.Mutex
-	bidAsk              *stockval.RealtimeBidAskData
-	bidAskMutex         *sync.Mutex
-	stockValueRequester stockapi.StockValueRequester
-	uiUpdater           StockUiUpdater
-	quoteRequestChan    chan stockval.AssetData
-	quoteResponseChan   chan stockapi.QueryQuoteResponse
+	Entry             stockval.AssetData
+	RealtimeData      *skipmap.Int64Map[*decimal.Big]
+	candles           map[candles.CandleResolution]CandleUpdater
+	candlesMutex      *sync.Mutex
+	quote             *stockval.QuoteData
+	quoteMutex        *sync.Mutex
+	bidAsk            *stockval.RealtimeBidAskData
+	bidAskMutex       *sync.Mutex
+	broker            stockapi.Broker
+	uiUpdater         StockUiUpdater
+	quoteRequestChan  chan stockval.AssetData
+	quoteResponseChan chan stockapi.QueryQuoteResponse
 }
 
 func NewPriceData(entry stockval.AssetData) PriceData {
@@ -44,8 +44,8 @@ func NewPriceData(entry stockval.AssetData) PriceData {
 	}
 }
 
-func (p *PriceData) Initialize(ctx context.Context, stockValueRequester stockapi.StockValueRequester, uiUpdater StockUiUpdater) {
-	p.stockValueRequester = stockValueRequester
+func (p *PriceData) Initialize(ctx context.Context, broker stockapi.Broker, uiUpdater StockUiUpdater) {
+	p.broker = broker
 	p.uiUpdater = uiUpdater
 	// TODO size of buffered channels?
 	p.quoteRequestChan = make(chan stockval.AssetData, 128)
@@ -69,7 +69,7 @@ func (p *PriceData) Initialize(ctx context.Context, stockValueRequester stockapi
 		}
 		log.Printf("Terminating quote update handler %s.", p.Entry.Figi)
 	}()
-	go stockValueRequester.QueryQuote(ctx, p.quoteRequestChan, p.quoteResponseChan)
+	go broker.QueryQuote(ctx, p.quoteRequestChan, p.quoteResponseChan)
 }
 
 func (p *PriceData) Cleanup() {
@@ -114,7 +114,7 @@ func (p *PriceData) LoadOrAddCandleResolution(ctx context.Context, candleResolut
 	c, ok := p.candles[candleResolution]
 	if !ok {
 		c = NewCandleUpdater(p.Entry, candleResolution)
-		c.Initialize(ctx, p.stockValueRequester, p.uiUpdater)
+		c.Initialize(ctx, p.broker, p.uiUpdater)
 		p.candles[candleResolution] = c
 	}
 	return c, ok

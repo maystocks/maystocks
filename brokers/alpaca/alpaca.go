@@ -4,9 +4,12 @@
 package alpaca
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"log"
 	"maystocks/cache"
 	"maystocks/config"
@@ -26,16 +29,16 @@ import (
 // We are not using the official alpaca client SDK, because it uses float64.
 // While float64 is better than the float32 used by finnhub, it is still bad for price values.
 // We directly unmarshal values into decimal.Big.
-type alpacaStockRequester struct {
+type alpacaBroker struct {
 	// "golang.org/x/time/rate" does not work well, as alpaca resets every 60 seconds.
-	rateLimiter   *webclient.RateLimiter
-	apiClient     *http.Client
-	realtimeConn  *websocket.Conn
-	tickDataMap   *stockval.RealtimeChanMap[stockval.RealtimeTickData]
-	bidAskDataMap *stockval.RealtimeChanMap[stockval.RealtimeBidAskData]
-	cache         *cache.AssetCache
-	figiReq       stockapi.SymbolSearchTool
-	config        config.BrokerConfig
+	rateLimiter    *webclient.RateLimiter
+	apiClient      *http.Client
+	realtimeConn   *websocket.Conn
+	tickDataMap    *stockval.RealtimeChanMap[stockval.RealtimeTickData]
+	bidAskDataMap  *stockval.RealtimeChanMap[stockval.RealtimeBidAskData]
+	cache          *cache.AssetCache
+	figiSearchTool stockapi.SymbolSearchTool
+	config         config.BrokerConfig
 }
 
 type trade struct {
@@ -133,6 +136,56 @@ type asset struct {
 	Fractionable bool   `json:"fractionable"`
 }
 
+type orderInitData struct {
+	Symbol        string       `json:"symbol"`
+	Quantity      *decimal.Big `json:"qty"`
+	Notional      *decimal.Big `json:"notional"`
+	Side          string       `json:"side"`
+	Type          string       `json:"type"`
+	TimeInForce   string       `json:"time_in_force"`
+	LimitPrice    *decimal.Big `json:"limit_price"`
+	StopPrice     *decimal.Big `json:"stop_price"`
+	TrailPrice    *decimal.Big `json:"trail_price"`
+	TrailPercent  *decimal.Big `json:"trail_percent"`
+	ExtendedHours bool         `json:"extended_hours"`
+	ClientOrderId string       `json:"client_order_id"`
+	OrderClass    string       `json:"order_class"`
+}
+
+type orderLiveData struct {
+	Id             string          `json:"id"`
+	ClientOrderId  string          `json:"client_order_id"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+	SubmittedAt    time.Time       `json:"submitted_at"`
+	FilledAt       *time.Time      `json:"filled_at"`
+	ExpiredAt      *time.Time      `json:"expired_at"`
+	CanceledAt     *time.Time      `json:"canceled_at"`
+	FailedAt       *time.Time      `json:"failed_at"`
+	ReplacedAt     *time.Time      `json:"replaced_at"`
+	ReplacedBy     *string         `json:"replaced_by"`
+	Replaces       *string         `json:"replaces"`
+	AssetId        string          `json:"asset_id"`
+	Symbol         string          `json:"symbol"`
+	AssetClass     string          `json:"asset_class"`
+	Notional       *decimal.Big    `json:"notional"`
+	Qty            *decimal.Big    `json:"qty"`
+	FilledQty      *decimal.Big    `json:"filled_qty"`
+	FilledAvgPrice *decimal.Big    `json:"filled_avg_price"`
+	OrderClass     string          `json:"order_class"`
+	Type           string          `json:"type"`
+	Side           string          `json:"side"`
+	TimeInForce    string          `json:"time_in_force"`
+	Status         string          `json:"status"`
+	ExtendedHours  bool            `json:"extended_hours"`
+	Legs           []orderLiveData `json:"legs"`
+	LimitPrice     *decimal.Big    `json:"limit_price"`
+	StopPrice      *decimal.Big    `json:"stop_price"`
+	TrailPrice     *decimal.Big    `json:"trail_price"`
+	TrailPercent   *decimal.Big    `json:"trail_percent"`
+	HWM            *decimal.Big    `json:"hwm"`
+}
+
 type realtimeSubscribeCommand struct {
 	Action string   `json:"action"`
 	Trades []string `json:"trades"`
@@ -150,7 +203,8 @@ type requestType int
 
 const (
 	requestTypeMarketData requestType = iota
-	requestTypeTrading
+	requestTypeTradingGet
+	requestTypeTradingPost
 )
 
 const (
@@ -184,6 +238,50 @@ func getCandleResolutionStr(r candles.CandleResolution) string {
 		return "1Month"
 	default:
 		panic("unsupported candle resolution")
+	}
+}
+
+func getSideStr(sell bool) string {
+	if sell {
+		return "sell"
+	} else {
+		return "buy"
+	}
+}
+
+func getOrderTypeStr(orderType stockapi.OrderType) string {
+	switch orderType {
+	case stockapi.OrderTypeMarket:
+		return "market"
+	case stockapi.OrderTypeLimit:
+		return "limit"
+	case stockapi.OrderTypeStop:
+		return "stop"
+	case stockapi.OrderTypeStopLimit:
+		return "stop_limit"
+	case stockapi.OrderTypeTrailingStop:
+		return "trailing_stop"
+	default:
+		panic("unsupported order type")
+	}
+}
+
+func getOrderTimeInForceStr(orderTimeInForce stockapi.OrderTimeInForce) string {
+	switch orderTimeInForce {
+	case stockapi.OrderTimeInForceDay:
+		return "day"
+	case stockapi.OrderTimeInForceGtc:
+		return "gtc"
+	case stockapi.OrderTimeInForceOpg:
+		return "opg"
+	case stockapi.OrderTimeInForceCls:
+		return "cls"
+	case stockapi.OrderTimeInForceIoc:
+		return "ioc"
+	case stockapi.OrderTimeInForceFok:
+		return "fok"
+	default:
+		panic("unsupported order time in force")
 	}
 }
 
@@ -234,14 +332,14 @@ func mapSymbolData(s asset) stockval.AssetData {
 	}
 }
 
-func NewStockRequester(figiReq stockapi.SymbolSearchTool) stockapi.StockValueRequester {
-	return &alpacaStockRequester{
-		rateLimiter:   webclient.NewRateLimiter(),
-		apiClient:     &http.Client{},
-		tickDataMap:   stockval.NewRealtimeChanMap[stockval.RealtimeTickData](),
-		bidAskDataMap: stockval.NewRealtimeChanMap[stockval.RealtimeBidAskData](),
-		cache:         cache.NewAssetCache(GetBrokerId()),
-		figiReq:       figiReq,
+func NewBroker(figiSearchTool stockapi.SymbolSearchTool) stockapi.Broker {
+	return &alpacaBroker{
+		rateLimiter:    webclient.NewRateLimiter(),
+		apiClient:      &http.Client{},
+		tickDataMap:    stockval.NewRealtimeChanMap[stockval.RealtimeTickData](),
+		bidAskDataMap:  stockval.NewRealtimeChanMap[stockval.RealtimeBidAskData](),
+		cache:          cache.NewAssetCache(GetBrokerId()),
+		figiSearchTool: figiSearchTool,
 	}
 }
 
@@ -249,24 +347,30 @@ func GetBrokerId() stockval.BrokerId {
 	return "alpaca"
 }
 
-func (rq *alpacaStockRequester) GetCapabilities() stockapi.Capabilities {
+func (rq *alpacaBroker) GetCapabilities() stockapi.Capabilities {
 	return stockapi.Capabilities{
 		RealtimeBidAsk: true,
 	}
 }
 
-func (rq *alpacaStockRequester) RemainingApiLimit() int {
+func (rq *alpacaBroker) RemainingApiLimit() int {
 	return rq.rateLimiter.Remaining()
 }
 
-func (rq *alpacaStockRequester) createRequest(cmd string, t requestType) (*http.Request, error) {
+func (rq *alpacaBroker) createRequest(ctx context.Context, cmd string, body io.Reader, t requestType) (*http.Request, error) {
 	var url string
-	if t == requestTypeTrading {
+	var method string
+	if t == requestTypeTradingGet {
 		url = rq.config.PaperTradingUrl
+		method = "GET"
+	} else if t == requestTypeTradingPost {
+		url = rq.config.PaperTradingUrl
+		method = "POST"
 	} else {
 		url = rq.config.DataUrl
+		method = "GET"
 	}
-	req, err := http.NewRequest("GET", url+cmd, nil)
+	req, err := http.NewRequestWithContext(ctx, method, url+cmd, body)
 	if err != nil {
 		return req, err
 	}
@@ -276,7 +380,7 @@ func (rq *alpacaStockRequester) createRequest(cmd string, t requestType) (*http.
 	return req, err
 }
 
-func (rq *alpacaStockRequester) runRequest(ctx context.Context, cmd string, query url.Values, t requestType) (*http.Response, error) {
+func (rq *alpacaBroker) runRequest(ctx context.Context, cmd string, query url.Values, body io.Reader, t requestType) (*http.Response, error) {
 	retry := true
 	var resp *http.Response
 	for retry {
@@ -286,7 +390,7 @@ func (rq *alpacaStockRequester) runRequest(ctx context.Context, cmd string, quer
 			return nil, err
 		}
 
-		req, err := rq.createRequest(cmd, t)
+		req, err := rq.createRequest(ctx, cmd, body, t)
 		if err != nil {
 			return nil, err
 		}
@@ -310,19 +414,19 @@ func (rq *alpacaStockRequester) runRequest(ctx context.Context, cmd string, quer
 	return resp, nil
 }
 
-func (rq *alpacaStockRequester) FindAsset(ctx context.Context, entry <-chan stockapi.SearchRequest, response chan<- stockapi.SearchResponse) {
+func (rq *alpacaBroker) FindAsset(ctx context.Context, entry <-chan stockapi.SearchRequest, response chan<- stockapi.SearchResponse) {
 	defer close(response)
 
 	// Use sync queries when requesting figi (unbuffered channels).
 	figiRequestChan := make(chan stockapi.SearchRequest)
 	figiResponseChan := make(chan stockapi.SearchResponse)
 	defer close(figiRequestChan)
-	go rq.figiReq.FindAsset(ctx, figiRequestChan, figiResponseChan)
+	go rq.figiSearchTool.FindAsset(ctx, figiRequestChan, figiResponseChan)
 
 	symbols := rq.cache.GetAssetList(ctx, func(ctx context.Context) ([]stockval.AssetData, error) {
 		query := make(url.Values)
 		query.Add("asset_class", getAssetClassStr(stockval.DefaultExchange))
-		resp, err := rq.runRequest(ctx, "/assets", query, requestTypeTrading)
+		resp, err := rq.runRequest(ctx, "/assets", query, nil, requestTypeTradingGet)
 		if err != nil {
 			return nil, err
 		}
@@ -380,7 +484,7 @@ func (rq *alpacaStockRequester) FindAsset(ctx context.Context, entry <-chan stoc
 	}
 }
 
-func (rq *alpacaStockRequester) queryAsset(ctx context.Context, symbols cache.AssetList, entry stockapi.SearchRequest) stockapi.SearchResponse {
+func (rq *alpacaBroker) queryAsset(ctx context.Context, symbols cache.AssetList, entry stockapi.SearchRequest) stockapi.SearchResponse {
 	assetList := symbols.Find(entry.Text, entry.MaxNumResults)
 	responseData := stockapi.SearchResponse{
 		SearchRequest: entry,
@@ -392,7 +496,7 @@ func (rq *alpacaStockRequester) queryAsset(ctx context.Context, symbols cache.As
 	return responseData
 }
 
-func (rq *alpacaStockRequester) QueryQuote(ctx context.Context, entry <-chan stockval.AssetData, response chan<- stockapi.QueryQuoteResponse) {
+func (rq *alpacaBroker) QueryQuote(ctx context.Context, entry <-chan stockval.AssetData, response chan<- stockapi.QueryQuoteResponse) {
 	defer close(response)
 
 	for entry := range entry {
@@ -405,8 +509,8 @@ func (rq *alpacaStockRequester) QueryQuote(ctx context.Context, entry <-chan sto
 	log.Println("alpaca QueryQuote terminating.")
 }
 
-func (rq *alpacaStockRequester) querySymbolQuote(ctx context.Context, entry stockval.AssetData) stockapi.QueryQuoteResponse {
-	resp, err := rq.runRequest(ctx, "/stocks/"+entry.Symbol+"/snapshot", nil, requestTypeMarketData)
+func (rq *alpacaBroker) querySymbolQuote(ctx context.Context, entry stockval.AssetData) stockapi.QueryQuoteResponse {
+	resp, err := rq.runRequest(ctx, "/stocks/"+entry.Symbol+"/snapshot", nil, nil, requestTypeMarketData)
 	if err != nil {
 		return stockapi.QueryQuoteResponse{Figi: entry.Figi, Error: err}
 	}
@@ -425,7 +529,7 @@ func (rq *alpacaStockRequester) querySymbolQuote(ctx context.Context, entry stoc
 	}
 }
 
-func (rq *alpacaStockRequester) QueryCandles(ctx context.Context, request <-chan stockapi.CandlesRequest, response chan<- stockapi.QueryCandlesResponse) {
+func (rq *alpacaBroker) QueryCandles(ctx context.Context, request <-chan stockapi.CandlesRequest, response chan<- stockapi.QueryCandlesResponse) {
 	defer close(response)
 
 	for req := range request {
@@ -438,7 +542,7 @@ func (rq *alpacaStockRequester) QueryCandles(ctx context.Context, request <-chan
 	log.Println("finnhub QueryCandles terminating.")
 }
 
-func (rq *alpacaStockRequester) querySymbolCandles(ctx context.Context, entry stockval.AssetData, resolution candles.CandleResolution,
+func (rq *alpacaBroker) querySymbolCandles(ctx context.Context, entry stockval.AssetData, resolution candles.CandleResolution,
 	fromTime time.Time, toTime time.Time) stockapi.QueryCandlesResponse {
 	// Alpaca is really strange when processing time filters.
 	// An end-filter of "now" will be rejected during after hours, for whatever reason.
@@ -468,7 +572,7 @@ func (rq *alpacaStockRequester) querySymbolCandles(ctx context.Context, entry st
 		}
 		query.Add("adjustment", "all") // split & dividend adjustment
 		query.Add("limit", "10000")
-		resp, err := rq.runRequest(ctx, "/stocks/"+entry.Symbol+"/bars", query, requestTypeMarketData)
+		resp, err := rq.runRequest(ctx, "/stocks/"+entry.Symbol+"/bars", query, nil, requestTypeMarketData)
 		if err != nil {
 			return stockapi.QueryCandlesResponse{Figi: entry.Figi, Error: err}
 		}
@@ -504,7 +608,7 @@ func (rq *alpacaStockRequester) querySymbolCandles(ctx context.Context, entry st
 	}
 }
 
-func (rq *alpacaStockRequester) initRealtimeConnection(ctx context.Context) {
+func (rq *alpacaBroker) initRealtimeConnection(ctx context.Context) {
 	if rq.realtimeConn != nil {
 		log.Fatal("only a single realtime connection is supported")
 	}
@@ -540,7 +644,7 @@ func (rq *alpacaStockRequester) initRealtimeConnection(ctx context.Context) {
 
 }
 
-func (rq *alpacaStockRequester) handleRealtimeData() {
+func (rq *alpacaBroker) handleRealtimeData() {
 	for {
 		var data []realtimeMessage
 		err := rq.realtimeConn.ReadJSON(&data)
@@ -603,7 +707,7 @@ func (rq *alpacaStockRequester) handleRealtimeData() {
 	}
 }
 
-func (rq *alpacaStockRequester) SubscribeData(ctx context.Context, request <-chan stockapi.SubscribeDataRequest, response chan<- stockapi.SubscribeDataResponse) {
+func (rq *alpacaBroker) SubscribeData(ctx context.Context, request <-chan stockapi.SubscribeDataRequest, response chan<- stockapi.SubscribeDataResponse) {
 	defer close(response)
 	for entry := range request {
 		// connect whenever we receive a first subscription message.
@@ -618,24 +722,24 @@ func (rq *alpacaStockRequester) SubscribeData(ctx context.Context, request <-cha
 		var err error
 		switch entry.Type {
 		case stockapi.RealtimeTradesSubscribe:
-			tickData, err = rq.tickDataMap.Subscribe(entry.Stock)
+			tickData, err = rq.tickDataMap.Subscribe(entry.Asset)
 		case stockapi.RealtimeTradesUnsubscribe:
-			err = rq.tickDataMap.Unsubscribe(entry.Stock)
+			err = rq.tickDataMap.Unsubscribe(entry.Asset)
 		case stockapi.RealtimeBidAskSubscribe:
-			bidAskData, err = rq.bidAskDataMap.Subscribe(entry.Stock)
+			bidAskData, err = rq.bidAskDataMap.Subscribe(entry.Asset)
 		case stockapi.RealtimeBidAskUnsubscribe:
-			err = rq.bidAskDataMap.Unsubscribe(entry.Stock)
+			err = rq.bidAskDataMap.Unsubscribe(entry.Asset)
 		default:
 			panic("unsupported realtime data subscription mode")
 		}
 		if err == nil {
-			subscribeCommand := getRealtimeSubscribeCommand(entry.Type, entry.Stock)
+			subscribeCommand := getRealtimeSubscribeCommand(entry.Type, entry.Asset)
 			msg, _ := json.Marshal(subscribeCommand)
 			rq.realtimeConn.WriteMessage(websocket.TextMessage, msg)
 		}
 
 		responseData := stockapi.SubscribeDataResponse{
-			Figi:       entry.Stock.Figi,
+			Figi:       entry.Asset.Figi,
 			Error:      err,
 			Type:       entry.Type,
 			TickData:   tickData,
@@ -649,7 +753,7 @@ func (rq *alpacaStockRequester) SubscribeData(ctx context.Context, request <-cha
 	}
 }
 
-func (rq *alpacaStockRequester) ReadConfig(c config.Config) error {
+func (rq *alpacaBroker) ReadConfig(c config.Config) error {
 	appConfig, err := c.Copy(false)
 	if err != nil {
 		return err
@@ -657,6 +761,72 @@ func (rq *alpacaStockRequester) ReadConfig(c config.Config) error {
 	rq.config = appConfig.BrokerConfig[GetBrokerId()]
 	rq.apiClient.Timeout = time.Second * time.Duration(rq.config.DataTimeoutSeconds)
 	return nil
+}
+
+func (rq *alpacaBroker) TradeAsset(ctx context.Context, request <-chan stockapi.TradeRequest, response chan<- stockapi.TradeResponse,
+	paperTrading bool) {
+	defer close(response)
+
+	for req := range request {
+		resp := rq.tradeStockAsset(ctx, req, paperTrading)
+		if resp.Error != nil {
+			log.Print(resp.Error)
+		}
+		response <- resp
+	}
+	log.Println("alpaca TradeAsset terminating.")
+}
+
+func (rq *alpacaBroker) tradeStockAsset(ctx context.Context, req stockapi.TradeRequest, paperTrading bool) stockapi.TradeResponse {
+	if !paperTrading { // TODO support real trading
+		return stockapi.TradeResponse{
+			RequestId: req.RequestId,
+			Figi:      req.Asset.Figi,
+			Error:     errors.New("real trading is not yet supported for alpaca"),
+		}
+	}
+	placeOrder := orderInitData{
+		Symbol:        req.Asset.Symbol,
+		Quantity:      req.Quantity,
+		Side:          getSideStr(req.Sell),
+		Type:          getOrderTypeStr(req.Type),
+		LimitPrice:    req.LimitPrice,
+		TimeInForce:   getOrderTimeInForceStr(req.TimeInForce),
+		ExtendedHours: req.ExtendedHours,
+		ClientOrderId: req.RequestId,
+	}
+	body, err := json.Marshal(placeOrder)
+	if err != nil {
+		return stockapi.TradeResponse{
+			RequestId: req.RequestId,
+			Figi:      req.Asset.Figi,
+			Error:     fmt.Errorf("error preparing order: %v", err),
+		}
+	}
+	resp, err := rq.runRequest(ctx, "/orders", nil, bytes.NewReader(body), requestTypeTradingPost)
+	if err != nil {
+		return stockapi.TradeResponse{
+			RequestId: req.RequestId,
+			Figi:      req.Asset.Figi,
+			Error:     fmt.Errorf("error requesting order: %v", err),
+		}
+	}
+	defer resp.Body.Close()
+
+	var listOrder orderLiveData
+	if err = webclient.ParseJsonResponse(resp, &listOrder); err != nil {
+		return stockapi.TradeResponse{
+			RequestId: req.RequestId,
+			Figi:      req.Asset.Figi,
+			Error:     err,
+		}
+	}
+
+	return stockapi.TradeResponse{
+		RequestId: req.RequestId,
+		Figi:      req.Asset.Figi,
+		OrderId:   listOrder.Id,
+	}
 }
 
 func IsValidConfig(c config.Config) bool {

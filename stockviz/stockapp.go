@@ -66,15 +66,17 @@ type StockApp struct {
 	messageField       *widgets.MessageField
 	plotTheme          *widgets.PlotTheme
 	matTheme           *material.Theme
-	stockRequester     map[stockval.BrokerId]stockapi.StockValueRequester
+	broker             map[stockval.BrokerId]stockapi.Broker
 	defaultBroker      stockval.BrokerId
 }
 
 type BrokerData struct {
-	stockValueRequester stockapi.StockValueRequester
-	dataRequestChan     chan stockapi.SubscribeDataRequest
-	dataResponseChan    chan stockapi.SubscribeDataResponse
-	stockMap            *skipmap.StringMap[PriceData]
+	broker            stockapi.Broker
+	dataRequestChan   chan stockapi.SubscribeDataRequest
+	dataResponseChan  chan stockapi.SubscribeDataResponse
+	tradeRequestChan  chan stockapi.TradeRequest
+	tradeResponseChan chan stockapi.TradeResponse
+	stockMap          *skipmap.StringMap[PriceData]
 }
 
 type StockUiUpdater interface {
@@ -101,24 +103,30 @@ func NewStockApp(c config.Config) *StockApp {
 	}
 }
 
-func (a *StockApp) Initialize(ctx context.Context, svr map[stockval.BrokerId]stockapi.StockValueRequester,
+func (a *StockApp) Initialize(ctx context.Context, svr map[stockval.BrokerId]stockapi.Broker,
 	defaultBroker stockval.BrokerId) error {
-	a.stockRequester = svr
+	a.broker = svr
 	a.defaultBroker = defaultBroker
 
 	a.terminateTimerChan = make(chan struct{})
 	for name, r := range svr {
 		p := BrokerData{
-			stockValueRequester: r,
+			broker: r,
 			// TODO size of buffered channels?
-			dataRequestChan:  make(chan stockapi.SubscribeDataRequest, 10),
-			dataResponseChan: make(chan stockapi.SubscribeDataResponse, 10),
-			stockMap:         skipmap.NewString[PriceData](),
+			dataRequestChan:   make(chan stockapi.SubscribeDataRequest, 10),
+			dataResponseChan:  make(chan stockapi.SubscribeDataResponse, 10),
+			tradeRequestChan:  make(chan stockapi.TradeRequest, 10),
+			tradeResponseChan: make(chan stockapi.TradeResponse, 10),
+			stockMap:          skipmap.NewString[PriceData](),
 		}
 		a.brokerData[name] = p
-		go r.SubscribeData(context.Background(), p.dataRequestChan, p.dataResponseChan)
+		go r.SubscribeData(ctx, p.dataRequestChan, p.dataResponseChan)
 		a.terminateWg.Add(1)
-		go a.handleTradesResponseChan(p)
+		go a.handleDataResponseChan(p.dataResponseChan, p.stockMap)
+
+		go r.TradeAsset(ctx, p.tradeRequestChan, p.tradeResponseChan, true)
+		a.terminateWg.Add(1)
+		go a.handleTradeResponseChan(p.tradeResponseChan)
 	}
 	a.terminateWg.Add(1)
 	go a.handlePeriodicUpdate()
@@ -157,7 +165,7 @@ func (a *StockApp) reloadConfiguration(ctx context.Context) error {
 		atomic.StoreInt32(a.lastUiIndex, 0)
 		for _, plotConfig := range appConfig.WindowConfig[0].PlotConfig {
 			broker := plotConfig.BrokerId
-			_, exists := a.stockRequester[broker]
+			_, exists := a.broker[broker]
 			if !exists {
 				broker = a.defaultBroker
 			}
@@ -245,27 +253,37 @@ func (a *StockApp) saveAndReloadConfiguration(ctx context.Context) {
 	}
 }
 
-func (a *StockApp) handleTradesResponseChan(p BrokerData) {
+func (a *StockApp) handleDataResponseChan(dataResponseChan chan stockapi.SubscribeDataResponse, stockMap *skipmap.StringMap[PriceData]) {
 	defer a.terminateWg.Done()
-	for tradesResponseData := range p.dataResponseChan {
-		if tradesResponseData.Error != nil {
-			log.Printf("error requesting realtime data: %v", tradesResponseData.Error)
+	for responseData := range dataResponseChan {
+		if responseData.Error != nil {
+			log.Printf("error requesting realtime data: %v", responseData.Error)
 			continue
 		}
-		if tradesResponseData.Type == stockapi.RealtimeTradesSubscribe {
-			data, ok := p.stockMap.Load(tradesResponseData.Figi)
+		if responseData.Type == stockapi.RealtimeTradesSubscribe {
+			data, ok := stockMap.Load(responseData.Figi)
 			if !ok {
 				log.Printf("error: invalid realtime trades channel")
 				continue
 			}
-			data.SetRealtimeTradesChan(tradesResponseData.TickData, a)
-		} else if tradesResponseData.Type == stockapi.RealtimeBidAskSubscribe {
-			data, ok := p.stockMap.Load(tradesResponseData.Figi)
+			data.SetRealtimeTradesChan(responseData.TickData, a)
+		} else if responseData.Type == stockapi.RealtimeBidAskSubscribe {
+			data, ok := stockMap.Load(responseData.Figi)
 			if !ok {
 				log.Printf("error: invalid realtime bid/ask channel")
 				continue
 			}
-			data.SetRealtimeBidAskChan(tradesResponseData.BidAskData, a)
+			data.SetRealtimeBidAskChan(responseData.BidAskData, a)
+		}
+	}
+}
+
+func (a *StockApp) handleTradeResponseChan(tradeResponseChan chan stockapi.TradeResponse) {
+	defer a.terminateWg.Done()
+	for responseData := range tradeResponseChan {
+		if responseData.Error != nil {
+			log.Printf("error trading: %v", responseData.Error)
+			continue
 		}
 	}
 }
@@ -457,7 +475,7 @@ func (a *StockApp) layoutPlots(ctx context.Context, gtx layout.Context) {
 		}),
 	)
 
-	for p, r := range a.stockRequester {
+	for p, r := range a.broker {
 		if r.RemainingApiLimit() < 1 {
 			a.widgetStack = append(
 				a.widgetStack,
@@ -485,6 +503,7 @@ func (a *StockApp) terminate() {
 	close(a.terminateTimerChan)
 	for _, p := range a.brokerData {
 		close(p.dataRequestChan)
+		close(p.tradeRequestChan)
 	}
 	a.terminateWg.Wait()
 }
@@ -513,28 +532,38 @@ func (a *StockApp) AddPlot(ctx context.Context, entry stockval.AssetData, candle
 	if uiIndex == 0 {
 		uiIndex = atomic.AddInt32(a.lastUiIndex, 1)
 	}
-	w.Initialize(ctx, entry, candleResolution, uiIndex, brokerName, brokerData.stockValueRequester, a, indicators, scalingX)
+	w.Initialize(ctx, entry, candleResolution, uiIndex, brokerName, brokerData.broker, a, indicators, scalingX)
 	a.vizMap.Store(w.UiIndex, w)
 
 	_, loaded := brokerData.stockMap.LoadOrStoreLazy(entry.Figi, func() PriceData {
 		priceData := NewPriceData(entry)
-		priceData.Initialize(ctx, brokerData.stockValueRequester, a)
+		priceData.Initialize(ctx, brokerData.broker, a)
 		return priceData
 	})
 	if !loaded {
 		// Request realtime data for new stocks.
-		tradesRequestData := stockapi.SubscribeDataRequest{
-			Stock: entry,
+		dataRequest := stockapi.SubscribeDataRequest{
+			Asset: entry,
 			Type:  stockapi.RealtimeTradesSubscribe,
 		}
-		brokerData.dataRequestChan <- tradesRequestData
-		if brokerData.stockValueRequester.GetCapabilities().RealtimeBidAsk {
-			bidAskRequestData := stockapi.SubscribeDataRequest{
-				Stock: entry,
+		brokerData.dataRequestChan <- dataRequest
+		if brokerData.broker.GetCapabilities().RealtimeBidAsk {
+			bidAskRequest := stockapi.SubscribeDataRequest{
+				Asset: entry,
 				Type:  stockapi.RealtimeBidAskSubscribe,
 			}
-			brokerData.dataRequestChan <- bidAskRequestData
+			brokerData.dataRequestChan <- bidAskRequest
 		}
+		// Test Trade
+		/*		tradeRequest := stockapi.TradeRequest{
+					Asset:         entry,
+					Quantity:      new(decimal.Big).SetUint64(10),
+					Type:          stockapi.OrderTypeLimit,
+					LimitPrice:    new(decimal.Big).SetUint64(150),
+					TimeInForce:   stockapi.OrderTimeInForceDay,
+					ExtendedHours: true,
+				}
+				brokerData.tradeRequestChan <- tradeRequest*/
 	}
 }
 
@@ -570,13 +599,13 @@ func (a *StockApp) RemovePlot(entry stockval.AssetData, uiIndex int32) {
 		priceData.Cleanup()
 		// unsubscribe realtime data
 		tradesRequestData := stockapi.SubscribeDataRequest{
-			Stock: entry,
+			Asset: entry,
 			Type:  stockapi.RealtimeTradesUnsubscribe,
 		}
 		brokerData.dataRequestChan <- tradesRequestData
-		if brokerData.stockValueRequester.GetCapabilities().RealtimeBidAsk {
+		if brokerData.broker.GetCapabilities().RealtimeBidAsk {
 			bidAskRequestData := stockapi.SubscribeDataRequest{
-				Stock: entry,
+				Asset: entry,
 				Type:  stockapi.RealtimeBidAskUnsubscribe,
 			}
 			brokerData.dataRequestChan <- bidAskRequestData

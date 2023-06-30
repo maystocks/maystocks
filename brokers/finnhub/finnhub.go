@@ -28,7 +28,7 @@ import (
 
 // We are not using the finnhub apiClient, because it uses float32, which is bad for price calculations.
 // We directly unmarshal values into decimal.Big.
-type finnhubStockRequester struct {
+type finnhubBroker struct {
 	// "golang.org/x/time/rate" does not work well, as finnhub resets every 60 seconds.
 	rateLimiter          *webclient.RateLimiter
 	perSecondRateLimiter *webclient.RateLimiter
@@ -36,7 +36,7 @@ type finnhubStockRequester struct {
 	realtimeConn         *websocket.Conn
 	tickDataMap          *stockval.RealtimeChanMap[stockval.RealtimeTickData]
 	cache                *cache.AssetCache
-	figiReq              stockapi.SymbolSearchTool
+	figiSearchTool       stockapi.SymbolSearchTool
 	config               config.BrokerConfig
 }
 
@@ -173,14 +173,14 @@ var tradeConditionMap = map[string]stockval.TradeContext{
 	"41": stockval.TradeConditionTradeThroughExempt(),
 }
 
-func NewStockRequester(figiReq stockapi.SymbolSearchTool) stockapi.StockValueRequester {
-	return &finnhubStockRequester{
+func NewBroker(figiSearchTool stockapi.SymbolSearchTool) stockapi.Broker {
+	return &finnhubBroker{
 		rateLimiter:          webclient.NewRateLimiter(),
 		perSecondRateLimiter: webclient.NewRateLimiter(),
 		apiClient:            &http.Client{},
 		tickDataMap:          stockval.NewRealtimeChanMap[stockval.RealtimeTickData](),
 		cache:                cache.NewAssetCache(GetBrokerId()),
-		figiReq:              figiReq,
+		figiSearchTool:       figiSearchTool,
 	}
 }
 
@@ -188,16 +188,16 @@ func GetBrokerId() stockval.BrokerId {
 	return "finnhub"
 }
 
-func (rq *finnhubStockRequester) GetCapabilities() stockapi.Capabilities {
+func (rq *finnhubBroker) GetCapabilities() stockapi.Capabilities {
 	return stockapi.Capabilities{}
 }
 
-func (rq *finnhubStockRequester) RemainingApiLimit() int {
+func (rq *finnhubBroker) RemainingApiLimit() int {
 	return calc.Min(rq.perSecondRateLimiter.Remaining(), rq.rateLimiter.Remaining())
 }
 
-func (rq *finnhubStockRequester) createRequest(cmd string) (*http.Request, error) {
-	req, err := http.NewRequest("GET", rq.config.DataUrl+cmd, nil)
+func (rq *finnhubBroker) createRequest(ctx context.Context, cmd string) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", rq.config.DataUrl+cmd, nil)
 	if err != nil {
 		return req, err
 	}
@@ -206,7 +206,7 @@ func (rq *finnhubStockRequester) createRequest(cmd string) (*http.Request, error
 	return req, err
 }
 
-func (rq *finnhubStockRequester) runRequest(ctx context.Context, cmd string, query url.Values) (*http.Response, error) {
+func (rq *finnhubBroker) runRequest(ctx context.Context, cmd string, query url.Values) (*http.Response, error) {
 	retry := true
 	var resp *http.Response
 	for retry {
@@ -220,7 +220,7 @@ func (rq *finnhubStockRequester) runRequest(ctx context.Context, cmd string, que
 			return nil, err
 		}
 
-		req, err := rq.createRequest(cmd)
+		req, err := rq.createRequest(ctx, cmd)
 		if err != nil {
 			return nil, err
 		}
@@ -255,14 +255,14 @@ func mapSymbolData(s stockSymbol) stockval.AssetData {
 	}
 }
 
-func (rq *finnhubStockRequester) FindAsset(ctx context.Context, entry <-chan stockapi.SearchRequest, response chan<- stockapi.SearchResponse) {
+func (rq *finnhubBroker) FindAsset(ctx context.Context, entry <-chan stockapi.SearchRequest, response chan<- stockapi.SearchResponse) {
 	defer close(response)
 
 	// Use sync queries when requesting figi (unbuffered channels).
 	figiRequestChan := make(chan stockapi.SearchRequest)
 	figiResponseChan := make(chan stockapi.SearchResponse)
 	defer close(figiRequestChan)
-	go rq.figiReq.FindAsset(ctx, figiRequestChan, figiResponseChan)
+	go rq.figiSearchTool.FindAsset(ctx, figiRequestChan, figiResponseChan)
 
 	symbols := rq.cache.GetAssetList(ctx, func(ctx context.Context) ([]stockval.AssetData, error) {
 		query := make(url.Values)
@@ -305,7 +305,7 @@ func (rq *finnhubStockRequester) FindAsset(ctx context.Context, entry <-chan sto
 	}
 }
 
-func (rq *finnhubStockRequester) queryAsset(ctx context.Context, symbols cache.AssetList, entry stockapi.SearchRequest) stockapi.SearchResponse {
+func (rq *finnhubBroker) queryAsset(ctx context.Context, symbols cache.AssetList, entry stockapi.SearchRequest) stockapi.SearchResponse {
 	assetList := symbols.Find(entry.Text, entry.MaxNumResults)
 	responseData := stockapi.SearchResponse{
 		SearchRequest: entry,
@@ -317,7 +317,7 @@ func (rq *finnhubStockRequester) queryAsset(ctx context.Context, symbols cache.A
 	return responseData
 }
 
-func (rq *finnhubStockRequester) QueryQuote(ctx context.Context, entry <-chan stockval.AssetData, response chan<- stockapi.QueryQuoteResponse) {
+func (rq *finnhubBroker) QueryQuote(ctx context.Context, entry <-chan stockval.AssetData, response chan<- stockapi.QueryQuoteResponse) {
 	defer close(response)
 
 	for entry := range entry {
@@ -330,7 +330,7 @@ func (rq *finnhubStockRequester) QueryQuote(ctx context.Context, entry <-chan st
 	log.Println("finnhub QueryQuote terminating.")
 }
 
-func (rq *finnhubStockRequester) querySymbolQuote(ctx context.Context, entry stockval.AssetData) stockapi.QueryQuoteResponse {
+func (rq *finnhubBroker) querySymbolQuote(ctx context.Context, entry stockval.AssetData) stockapi.QueryQuoteResponse {
 	query := make(url.Values)
 	query.Add("symbol", entry.Symbol)
 	resp, err := rq.runRequest(ctx, "/quote", query)
@@ -356,7 +356,7 @@ func (rq *finnhubStockRequester) querySymbolQuote(ctx context.Context, entry sto
 	}
 }
 
-func (rq *finnhubStockRequester) QueryCandles(ctx context.Context, request <-chan stockapi.CandlesRequest, response chan<- stockapi.QueryCandlesResponse) {
+func (rq *finnhubBroker) QueryCandles(ctx context.Context, request <-chan stockapi.CandlesRequest, response chan<- stockapi.QueryCandlesResponse) {
 	defer close(response)
 
 	for req := range request {
@@ -369,7 +369,7 @@ func (rq *finnhubStockRequester) QueryCandles(ctx context.Context, request <-cha
 	log.Println("finnhub QueryCandles terminating.")
 }
 
-func (rq *finnhubStockRequester) querySymbolCandles(ctx context.Context, entry stockval.AssetData, resolution candles.CandleResolution,
+func (rq *finnhubBroker) querySymbolCandles(ctx context.Context, entry stockval.AssetData, resolution candles.CandleResolution,
 	fromTime time.Time, toTime time.Time) stockapi.QueryCandlesResponse {
 	query := make(url.Values)
 	query.Add("symbol", entry.Symbol)
@@ -410,7 +410,7 @@ func (rq *finnhubStockRequester) querySymbolCandles(ctx context.Context, entry s
 	}
 }
 
-func (rq *finnhubStockRequester) initRealtimeConnection(ctx context.Context) {
+func (rq *finnhubBroker) initRealtimeConnection(ctx context.Context) {
 	if rq.realtimeConn != nil {
 		log.Fatal("only a single realtime connection is supported")
 	}
@@ -426,7 +426,7 @@ func (rq *finnhubStockRequester) initRealtimeConnection(ctx context.Context) {
 	}
 }
 
-func (rq *finnhubStockRequester) handleRealtimeData() {
+func (rq *finnhubBroker) handleRealtimeData() {
 	for {
 		var data realtimeTickData
 		err := rq.realtimeConn.ReadJSON(&data)
@@ -475,7 +475,7 @@ func (rq *finnhubStockRequester) handleRealtimeData() {
 	}
 }
 
-func (rq *finnhubStockRequester) SubscribeData(ctx context.Context, request <-chan stockapi.SubscribeDataRequest, response chan<- stockapi.SubscribeDataResponse) {
+func (rq *finnhubBroker) SubscribeData(ctx context.Context, request <-chan stockapi.SubscribeDataRequest, response chan<- stockapi.SubscribeDataResponse) {
 	defer close(response)
 	for entry := range request {
 		// connect whenever we receive a first subscription message.
@@ -489,23 +489,23 @@ func (rq *finnhubStockRequester) SubscribeData(ctx context.Context, request <-ch
 		var err error
 		switch entry.Type {
 		case stockapi.RealtimeTradesSubscribe:
-			tickData, err = rq.tickDataMap.Subscribe(entry.Stock)
+			tickData, err = rq.tickDataMap.Subscribe(entry.Asset)
 		case stockapi.RealtimeTradesUnsubscribe:
-			err = rq.tickDataMap.Unsubscribe(entry.Stock)
+			err = rq.tickDataMap.Unsubscribe(entry.Asset)
 		default:
 			panic("unsupported realtime data subscription mode")
 		}
 		if err == nil {
 			subscribeCommand := realtimeCommand{
 				Type:   getRealtimeDataSubscriptionStr(entry.Type),
-				Symbol: entry.Stock.Symbol,
+				Symbol: entry.Asset.Symbol,
 			}
 			msg, _ := json.Marshal(subscribeCommand)
 			rq.realtimeConn.WriteMessage(websocket.TextMessage, msg)
 		}
 
 		responseData := stockapi.SubscribeDataResponse{
-			Figi:     entry.Stock.Figi,
+			Figi:     entry.Asset.Figi,
 			Error:    err,
 			Type:     entry.Type,
 			TickData: tickData,
@@ -518,7 +518,7 @@ func (rq *finnhubStockRequester) SubscribeData(ctx context.Context, request <-ch
 	}
 }
 
-func (rq *finnhubStockRequester) ReadConfig(c config.Config) error {
+func (rq *finnhubBroker) ReadConfig(c config.Config) error {
 	appConfig, err := c.Copy(false)
 	if err != nil {
 		return err
@@ -527,6 +527,19 @@ func (rq *finnhubStockRequester) ReadConfig(c config.Config) error {
 	rq.apiClient.Timeout = time.Second * time.Duration(rq.config.DataTimeoutSeconds)
 	rq.perSecondRateLimiter = webclient.NewManualRateLimiter(time.Second, uint32(rq.config.RateLimitPerSecond))
 	return nil
+}
+
+func (rq *finnhubBroker) TradeAsset(ctx context.Context, request <-chan stockapi.TradeRequest, response chan<- stockapi.TradeResponse,
+	paperTrading bool) {
+	defer close(response)
+
+	for range request {
+		resp := stockapi.TradeResponse{
+			Error: errors.New("trading is not supported by finnhub"),
+		}
+		response <- resp
+	}
+	log.Println("finnhub TradeAsset terminating.")
 }
 
 func IsValidConfig(c config.Config) bool {

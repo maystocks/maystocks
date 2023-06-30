@@ -38,7 +38,7 @@ const (
 type InitApp struct {
 	initWindow         *app.Window
 	config             config.Config
-	stockRequester     map[stockval.BrokerId]stockapi.StockValueRequester
+	broker             map[stockval.BrokerId]stockapi.Broker
 	defaultBroker      stockval.BrokerId
 	licenseConfirmed   bool
 	hasEncryptedConfig bool
@@ -52,7 +52,7 @@ type InitApp struct {
 
 func NewInitApp(c config.Config) *InitApp {
 	return &InitApp{
-		stockRequester:  make(map[stockval.BrokerId]stockapi.StockValueRequester),
+		broker:          make(map[stockval.BrokerId]stockapi.Broker),
 		config:          c,
 		licenseView:     widgets.NewLicenseView(),
 		pwCreatorView:   widgets.NewPasswordCreatorView(false),
@@ -76,27 +76,27 @@ func (a *InitApp) reloadConfiguration() error {
 	if !openfigi.IsValidConfig(a.config) {
 		return errors.New("missing openfigi configuration")
 	}
-	figiRequester := openfigi.NewRequester()
-	err = figiRequester.ReadConfig(a.config)
+	figiSearchTool := openfigi.NewSearchTool()
+	err = figiSearchTool.ReadConfig(a.config)
 	if err != nil {
 		return err
 	}
 	if alpaca.IsValidConfig(a.config) {
-		r := alpaca.NewStockRequester(figiRequester)
+		r := alpaca.NewBroker(figiSearchTool)
 		err = r.ReadConfig(a.config)
 		if err != nil {
 			return err
 		}
-		a.stockRequester[alpaca.GetBrokerId()] = r
+		a.broker[alpaca.GetBrokerId()] = r
 		a.defaultBroker = alpaca.GetBrokerId()
 	}
 	if finnhub.IsValidConfig(a.config) {
-		r := finnhub.NewStockRequester(figiRequester)
+		r := finnhub.NewBroker(figiSearchTool)
 		err = r.ReadConfig(a.config)
 		if err != nil {
 			return err
 		}
-		a.stockRequester[finnhub.GetBrokerId()] = r
+		a.broker[finnhub.GetBrokerId()] = r
 		a.defaultBroker = finnhub.GetBrokerId()
 	}
 	a.configView.UpdateUiFromConfig(&appConfig)
@@ -138,12 +138,12 @@ func (a *InitApp) Run(ctx context.Context) {
 			log.Fatalf("initialization failed: %v", err)
 		}
 	}
-	if !a.licenseConfirmed || !a.hasEncryptedConfig || len(a.stockRequester) == 0 {
+	if !a.licenseConfirmed || !a.hasEncryptedConfig || len(a.broker) == 0 {
 		log.Fatal("initialization failed: missing initialization data")
 	}
 	// Start main app after initial configuration.
 	s := stockviz.NewStockApp(a.config)
-	err = s.Initialize(ctx, a.stockRequester, a.defaultBroker)
+	err = s.Initialize(ctx, a.broker, a.defaultBroker)
 	if err != nil {
 		log.Fatalf("app initialization failed: %v", err)
 	}

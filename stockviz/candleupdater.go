@@ -35,8 +35,7 @@ func NewCandleUpdater(entry stockval.AssetData, resolution candles.CandleResolut
 	}
 }
 
-func (d *CandleUpdater) Initialize(ctx context.Context,
-	stockValueRequester stockapi.StockValueRequester, uiUpdater StockUiUpdater) {
+func (d *CandleUpdater) Initialize(ctx context.Context, broker stockapi.Broker, uiUpdater StockUiUpdater) {
 	// TODO size of buffered channels?
 	d.candlesRequestChan = make(chan stockapi.CandlesRequest, 128)
 	d.candlesResponseChan = make(chan stockapi.QueryCandlesResponse, 128)
@@ -48,7 +47,7 @@ func (d *CandleUpdater) Initialize(ctx context.Context,
 		}
 		log.Printf("Terminating candle update handler %s.", d.Entry.Figi)
 	}()
-	go stockValueRequester.QueryCandles(ctx, d.candlesRequestChan, d.candlesResponseChan)
+	go broker.QueryCandles(ctx, d.candlesRequestChan, d.candlesResponseChan)
 }
 
 func (d *CandleUpdater) Refresh() {

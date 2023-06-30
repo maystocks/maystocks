@@ -22,7 +22,7 @@ import (
 	"github.com/zhangyunhao116/skipmap"
 )
 
-type openFigiRequester struct {
+type openFigiSearchTool struct {
 	searchRateLimiter  *webclient.RateLimiter
 	mappingRateLimiter *webclient.RateLimiter
 	apiClient          *http.Client
@@ -73,8 +73,8 @@ type searchResponse struct {
 
 type mappingResponse []searchResponse
 
-func NewRequester() stockapi.SymbolSearchTool {
-	return &openFigiRequester{
+func NewSearchTool() stockapi.SymbolSearchTool {
+	return &openFigiSearchTool{
 		searchRateLimiter:  webclient.NewRateLimiter(),
 		mappingRateLimiter: webclient.NewRateLimiter(),
 		apiClient:          http.DefaultClient,
@@ -86,15 +86,15 @@ func GetBrokerId() stockval.BrokerId {
 	return "openfigi"
 }
 
-func (rq *openFigiRequester) GetCapabilities() stockapi.Capabilities {
+func (rq *openFigiSearchTool) GetCapabilities() stockapi.Capabilities {
 	return stockapi.Capabilities{}
 }
 
-func (rq *openFigiRequester) RemainingApiLimit() int {
+func (rq *openFigiSearchTool) RemainingApiLimit() int {
 	return calc.Min(rq.mappingRateLimiter.Remaining(), rq.searchRateLimiter.Remaining())
 }
 
-func (rq *openFigiRequester) createOpenFigiRequest(cmd string, body io.Reader) (*http.Request, error) {
+func (rq *openFigiSearchTool) createOpenFigiRequest(cmd string, body io.Reader) (*http.Request, error) {
 	req, err := http.NewRequest("POST", rq.config.DataUrl+cmd, body)
 	if err != nil {
 		return req, err
@@ -119,7 +119,7 @@ func mapSymbolData(s FigiData) stockval.AssetData {
 	}
 }
 
-func (rq *openFigiRequester) FindAsset(ctx context.Context, entry <-chan stockapi.SearchRequest, response chan<- stockapi.SearchResponse) {
+func (rq *openFigiSearchTool) FindAsset(ctx context.Context, entry <-chan stockapi.SearchRequest, response chan<- stockapi.SearchResponse) {
 	defer close(response)
 
 	for entry := range entry {
@@ -131,7 +131,7 @@ func (rq *openFigiRequester) FindAsset(ctx context.Context, entry <-chan stockap
 	}
 }
 
-func (rq *openFigiRequester) queryFigi(ctx context.Context, searchData stockapi.SearchRequest) stockapi.SearchResponse {
+func (rq *openFigiSearchTool) queryFigi(ctx context.Context, searchData stockapi.SearchRequest) stockapi.SearchResponse {
 	searchText := stockval.NormalizeAssetName(searchData.Text)
 	mappingFilters := mappingFilters{
 		ExchangeCode: stockval.DefaultExchange,
@@ -183,7 +183,7 @@ func (rq *openFigiRequester) queryFigi(ctx context.Context, searchData stockapi.
 	}
 }
 
-func (rq *openFigiRequester) executeOpenFigiSearchQuery(ctx context.Context, searchReq searchRequest) ([]FigiData, error) {
+func (rq *openFigiSearchTool) executeOpenFigiSearchQuery(ctx context.Context, searchReq searchRequest) ([]FigiData, error) {
 	searchJson, err := json.Marshal(searchReq)
 	if err != nil {
 		return []FigiData{}, err
@@ -230,7 +230,7 @@ func (rq *openFigiRequester) executeOpenFigiSearchQuery(ctx context.Context, sea
 	return responseData.Data, nil
 }
 
-func (rq *openFigiRequester) executeOpenFigiMappingQuery(ctx context.Context, mappingReq mappingRequest) ([]FigiData, error) {
+func (rq *openFigiSearchTool) executeOpenFigiMappingQuery(ctx context.Context, mappingReq mappingRequest) ([]FigiData, error) {
 	mappingReqList := [1]mappingRequest{
 		mappingReq,
 	}
@@ -284,7 +284,7 @@ func (rq *openFigiRequester) executeOpenFigiMappingQuery(ctx context.Context, ma
 	return responseData[0].Data, nil
 }
 
-func (rq *openFigiRequester) ReadConfig(c config.Config) error {
+func (rq *openFigiSearchTool) ReadConfig(c config.Config) error {
 	appConfig, err := c.Copy(false)
 	if err != nil {
 		return err

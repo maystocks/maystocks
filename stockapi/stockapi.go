@@ -70,7 +70,7 @@ const (
 )
 
 type SubscribeDataRequest struct {
-	Stock stockval.AssetData
+	Asset stockval.AssetData
 	Type  RealtimeDataSubscription
 }
 
@@ -82,9 +82,49 @@ type SubscribeDataResponse struct {
 	BidAskData chan stockval.RealtimeBidAskData
 }
 
-type StockValueRequester interface {
+type OrderType int32
+
+const (
+	OrderTypeMarket OrderType = iota
+	OrderTypeLimit
+	OrderTypeStop
+	OrderTypeStopLimit
+	OrderTypeTrailingStop
+)
+
+type OrderTimeInForce int32
+
+const (
+	OrderTimeInForceDay OrderTimeInForce = iota
+	OrderTimeInForceGtc
+	OrderTimeInForceOpg
+	OrderTimeInForceCls
+	OrderTimeInForceIoc
+	OrderTimeInForceFok
+)
+
+type TradeRequest struct {
+	RequestId     string
+	Asset         stockval.AssetData
+	Quantity      *decimal.Big
+	Sell          bool
+	Type          OrderType
+	LimitPrice    *decimal.Big
+	TimeInForce   OrderTimeInForce
+	ExtendedHours bool
+}
+
+type TradeResponse struct {
+	RequestId string
+	Figi      string
+	OrderId   string
+	Error     error
+}
+
+type Broker interface {
 	SymbolSearchTool
 	QueryQuote(ctx context.Context, entry <-chan stockval.AssetData, response chan<- QueryQuoteResponse)
 	QueryCandles(ctx context.Context, request <-chan CandlesRequest, response chan<- QueryCandlesResponse)
 	SubscribeData(ctx context.Context, request <-chan SubscribeDataRequest, response chan<- SubscribeDataResponse)
+	TradeAsset(ctx context.Context, request <-chan TradeRequest, response chan<- TradeResponse, paperTrading bool)
 }

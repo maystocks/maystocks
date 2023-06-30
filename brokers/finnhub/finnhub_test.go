@@ -29,10 +29,10 @@ func TestQueryQuote(t *testing.T) {
 	defer srv.Close()
 	isin := make(chan stockval.AssetData, 1)
 	response := make(chan stockapi.QueryQuoteResponse, 1)
-	requester := NewStockRequester(nil)
-	err := requester.ReadConfig(newFinnhubConfig(srv.URL))
+	broker := NewBroker(nil)
+	err := broker.ReadConfig(newFinnhubConfig(srv.URL))
 	assert.NoError(t, err)
-	go requester.QueryQuote(context.Background(), isin, response)
+	go broker.QueryQuote(context.Background(), isin, response)
 	isin <- stockval.AssetData{Figi: testFigi, Isin: testIsin, Symbol: testSymbol}
 	responseData := <-response
 	assert.Equal(t, testFigi, responseData.Figi)
@@ -47,10 +47,10 @@ func TestQueryCandles(t *testing.T) {
 	defer srv.Close()
 	c := make(chan stockapi.CandlesRequest, 1)
 	response := make(chan stockapi.QueryCandlesResponse, 1)
-	requester := NewStockRequester(nil)
-	err := requester.ReadConfig(newFinnhubConfig(srv.URL))
+	broker := NewBroker(nil)
+	err := broker.ReadConfig(newFinnhubConfig(srv.URL))
 	assert.NoError(t, err)
-	go requester.QueryCandles(context.Background(), c, response)
+	go broker.QueryCandles(context.Background(), c, response)
 	c <- stockapi.CandlesRequest{
 		Stock:      stockval.AssetData{Figi: testFigi, Isin: testIsin, Symbol: testSymbol},
 		Resolution: candles.CandleOneMinute,
@@ -119,10 +119,10 @@ func TestQueryCandlesError(t *testing.T) {
 	defer srv.Close()
 	c := make(chan stockapi.CandlesRequest, 1)
 	response := make(chan stockapi.QueryCandlesResponse, 1)
-	requester := NewStockRequester(nil)
-	err := requester.ReadConfig(newFinnhubConfig(srv.URL))
+	broker := NewBroker(nil)
+	err := broker.ReadConfig(newFinnhubConfig(srv.URL))
 	assert.NoError(t, err)
-	go requester.QueryCandles(context.Background(), c, response)
+	go broker.QueryCandles(context.Background(), c, response)
 	c <- stockapi.CandlesRequest{
 		Stock:      stockval.AssetData{Figi: testFigi, Isin: testIsin, Symbol: testSymbol},
 		Resolution: candles.CandleOneMinute,
