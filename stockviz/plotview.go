@@ -14,6 +14,7 @@ import (
 	"maystocks/stockplot"
 	"maystocks/stockval"
 	"maystocks/widgets"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -180,12 +181,12 @@ func (v *PlotView) handleSearchResult(ctx context.Context) {
 func (v *PlotView) handleInput(ctx context.Context, gtx layout.Context) {
 	t, ok := v.searchField.EnteredSearchText()
 	if ok && len(t) > 1 {
-		v.SearchRequestChan <- stockapi.SearchRequest{Text: t, MaxNumResults: maxLookupResults}
+		v.SearchRequestChan <- stockapi.SearchRequest{RequestId: strconv.Itoa(int(v.UiIndex)), Text: t, MaxNumResults: maxLookupResults}
 	}
 
 	t, ok = v.searchField.SubmittedSearchText()
 	if ok && t != "" {
-		v.SearchRequestChan <- stockapi.SearchRequest{Text: t, MaxNumResults: maxLookupResults, UnambiguousLookup: true}
+		v.SearchRequestChan <- stockapi.SearchRequest{RequestId: strconv.Itoa(int(v.UiIndex)), Text: t, MaxNumResults: maxLookupResults, UnambiguousLookup: true}
 	}
 
 	resolutionIndex := v.resolutionDropDown.ClickedIndex()

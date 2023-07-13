@@ -430,6 +430,8 @@ func (plot *Plot) GetPlotScalingX() (stockval.PlotScaling, bool) {
 		ValueGrid: plot.valueGridX,
 	}
 	changed := plot.previousPlotScaling != newPlotScaling
-	plot.previousPlotScaling = newPlotScaling
+	if changed {
+		plot.previousPlotScaling = newPlotScaling
+	}
 	return newPlotScaling, changed
 }

@@ -16,6 +16,7 @@ import (
 
 type Capabilities struct {
 	RealtimeBidAsk bool
+	PaperTrading   bool
 }
 
 type SearchRequest struct {

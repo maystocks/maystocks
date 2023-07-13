@@ -350,6 +350,7 @@ func GetBrokerId() stockval.BrokerId {
 func (rq *alpacaBroker) GetCapabilities() stockapi.Capabilities {
 	return stockapi.Capabilities{
 		RealtimeBidAsk: true,
+		PaperTrading:   true,
 	}
 }
 

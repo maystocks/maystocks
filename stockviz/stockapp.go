@@ -17,6 +17,7 @@ import (
 	"maystocks/widgets"
 	"reflect"
 	"sort"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -559,7 +560,7 @@ func (a *StockApp) AddPlot(ctx context.Context, entry stockval.AssetData, candle
 
 		// Re-request asset data in order to update tradable flag.
 		w.SearchRequestChan <- stockapi.SearchRequest{
-			RequestId:         entry.Figi,
+			RequestId:         strconv.Itoa(int(uiIndex)),
 			Text:              entry.Symbol,
 			UnambiguousLookup: true,
 		}
