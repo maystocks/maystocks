@@ -84,6 +84,7 @@ type StockUiUpdater interface {
 	AddPlot(ctx context.Context, entry stockval.AssetData, candleResolution candles.CandleResolution, brokerName stockval.BrokerId,
 		uiIndex int32, indicators []indapi.IndicatorData, scalingX stockval.PlotScaling)
 	RemovePlot(entry stockval.AssetData, uiIndex int32)
+	UpdatePlot(uiIndex int32, v PlotView)
 	ShowSettings()
 	ShowIndicators(uiIndex int32)
 }
@@ -201,13 +202,14 @@ func (a *StockApp) reloadConfiguration(ctx context.Context) error {
 				}
 			}
 			if changed {
-				// TODO just change indicators instead of reloading
-				a.RemovePlot(w.AssetData, uiIndex)
+				// Change indicators and update plot view
 				indicatorData := make([]indapi.IndicatorData, 0, len(plotConfig.Indicators))
 				for _, c := range plotConfig.Indicators {
 					indicatorData = append(indicatorData, indicators.Create(c.IndicatorId, c.Properties, c.Color))
 				}
-				a.AddPlot(ctx, w.AssetData, w.GetLastCandleResolution(), w.GetLastBrokerName(), w.UiIndex, indicatorData, w.GetLastPlotScalingX())
+				newPlotView := w
+				newPlotView.indicators = indicatorData
+				a.UpdatePlot(w.UiIndex, newPlotView)
 			}
 			return true
 		})
@@ -554,16 +556,24 @@ func (a *StockApp) AddPlot(ctx context.Context, entry stockval.AssetData, candle
 			}
 			brokerData.dataRequestChan <- bidAskRequest
 		}
+
+		// Re-request asset data in order to update tradable flag.
+		w.SearchRequestChan <- stockapi.SearchRequest{
+			RequestId:         entry.Figi,
+			Text:              entry.Symbol,
+			UnambiguousLookup: true,
+		}
 		// Test Trade
-		/*		tradeRequest := stockapi.TradeRequest{
-					Asset:         entry,
-					Quantity:      new(decimal.Big).SetUint64(10),
-					Type:          stockapi.OrderTypeLimit,
-					LimitPrice:    new(decimal.Big).SetUint64(150),
-					TimeInForce:   stockapi.OrderTimeInForceDay,
-					ExtendedHours: true,
-				}
-				brokerData.tradeRequestChan <- tradeRequest*/
+		/*tradeRequest := stockapi.TradeRequest{
+			Asset:         entry,
+			Quantity:      new(decimal.Big).SetUint64(10),
+			Type:          stockapi.OrderTypeLimit,
+			Sell:          true,
+			LimitPrice:    new(decimal.Big).SetUint64(128),
+			TimeInForce:   stockapi.OrderTimeInForceDay,
+			ExtendedHours: true,
+		}
+		brokerData.tradeRequestChan <- tradeRequest*/
 	}
 }
 
@@ -611,6 +621,10 @@ func (a *StockApp) RemovePlot(entry stockval.AssetData, uiIndex int32) {
 			brokerData.dataRequestChan <- bidAskRequestData
 		}
 	}
+}
+
+func (a *StockApp) UpdatePlot(uiIndex int32, v PlotView) {
+	a.vizMap.Store(uiIndex, v)
 }
 
 func (a *StockApp) ShowSettings() {

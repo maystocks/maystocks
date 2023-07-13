@@ -41,6 +41,7 @@ type PlotView struct {
 	lastCandleResolution *candles.CandleResolution // use atomic accessor
 	lastPlotTimeRange    *PlotTimeRange
 	Plot                 *stockplot.Plot
+	QuoteField           *stockplot.QuoteField
 	UiIndex              int32
 	uiUpdater            StockUiUpdater
 	indicators           []indapi.IndicatorData
@@ -94,6 +95,7 @@ func (v *PlotView) Initialize(ctx context.Context, entry stockval.AssetData, can
 	v.brokerDropdown = widgets.NewDropDown(brokerList, brokerIndex)
 	v.resolutionDropDown = widgets.NewDropDown(resolutionList, int(candleResolution))
 	v.Plot = stockplot.NewPlot(v.PlotTheme, candleResolution, scalingX)
+	v.QuoteField = stockplot.NewQuoteField()
 	v.UiIndex = uiIndex
 	v.uiUpdater = uiUpdater
 	v.indicators = indicators
@@ -134,6 +136,12 @@ func (v *PlotView) GetLastPlotScalingX() stockval.PlotScaling {
 	return *v.scalingX
 }
 
+func (v *PlotView) setLastPlotScalingX(s stockval.PlotScaling) {
+	v.scalingXmutex.Lock()
+	defer v.scalingXmutex.Unlock()
+	*v.scalingX = s
+}
+
 func (v *PlotView) handleSearchResult(ctx context.Context) {
 	for searchResponse := range v.SearchResponseChan {
 		if searchResponse.Error != nil {
@@ -143,9 +151,11 @@ func (v *PlotView) handleSearchResult(ctx context.Context) {
 		if searchResponse.UnambiguousLookup {
 			if len(searchResponse.Result) > 0 {
 				if v.AssetData.Figi == searchResponse.Result[0].Figi {
-					// Same Figi as already shown.
+					// Same Figi as already shown. Just update asset data (especially tradable flag).
 					// TODO maybe visual feedback?
-					// TODO update asset data considering "tradable" flag!!!
+					newPlotView := *v
+					newPlotView.AssetData = searchResponse.Result[0]
+					v.uiUpdater.UpdatePlot(v.UiIndex, newPlotView)
 				} else {
 					v.uiUpdater.RemovePlot(v.AssetData, v.UiIndex)
 					v.uiUpdater.AddPlot(ctx, searchResponse.Result[0], v.GetLastCandleResolution(), v.GetLastBrokerName(), v.UiIndex, v.indicators, v.GetLastPlotScalingX())
@@ -290,7 +300,7 @@ func (v *PlotView) Layout(ctx context.Context, gtx layout.Context, th *material.
 							gtx,
 							th,
 						)
-						stockplot.LayoutQuoteField(
+						v.QuoteField.Layout(
 							v.AssetData,
 							quote,
 							bidAsk,
@@ -302,9 +312,10 @@ func (v *PlotView) Layout(ctx context.Context, gtx layout.Context, th *material.
 							candleUpdater.CandleData,
 							gtx,
 						)
-						v.scalingXmutex.Lock()
-						*v.scalingX = v.Plot.GetPlotScalingX()
-						v.scalingXmutex.Unlock()
+						newScalingX, scalingChanged := v.Plot.GetPlotScalingX()
+						if scalingChanged {
+							v.setLastPlotScalingX(newScalingX)
+						}
 						return d
 					},
 				),

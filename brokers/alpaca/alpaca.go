@@ -614,7 +614,7 @@ func (rq *alpacaBroker) initRealtimeConnection(ctx context.Context) {
 	}
 	log.Printf("establishing alpaca realtime connection.")
 	var err error
-	rq.realtimeConn, _, err = websocket.DefaultDialer.DialContext(ctx, rq.config.WsUrl+"/iex", nil)
+	rq.realtimeConn, _, err = websocket.DefaultDialer.DialContext(ctx, rq.config.WsUrl+"/iex", nil) // TODO support other data
 	if err != nil {
 		// TODO this should not be a fatal error
 		log.Fatalf("could not connect to alpaca websocket: %v", err)
@@ -641,7 +641,6 @@ func (rq *alpacaBroker) initRealtimeConnection(ctx context.Context) {
 		// TODO this should not be a fatal error
 		log.Fatalf("could not authenticate alpaca realtime: %v", err)
 	}
-
 }
 
 func (rq *alpacaBroker) handleRealtimeData() {

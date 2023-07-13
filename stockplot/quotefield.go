@@ -14,10 +14,23 @@ import (
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/text"
+	"gioui.org/widget"
 	"gioui.org/widget/material"
+	"gioui.org/x/component"
+	"github.com/ericlagergren/decimal"
 )
 
-func LayoutQuoteField(entry stockval.AssetData, quote stockval.QuoteData, bidAsk stockval.RealtimeBidAskData, basePos image.Point, gtx layout.Context, th *material.Theme) {
+type QuoteField struct {
+	amountField      component.TextField
+	buttonBuyMarket  widget.Clickable
+	buttonSellMarket widget.Clickable
+}
+
+func NewQuoteField() *QuoteField {
+	return &QuoteField{}
+}
+
+func (q *QuoteField) Layout(entry stockval.AssetData, quote stockval.QuoteData, bidAsk stockval.RealtimeBidAskData, basePos image.Point, gtx layout.Context, th *material.Theme) {
 	macroName := op.Record(gtx.Ops)
 	lblName := material.H6(
 		th,
@@ -49,7 +62,8 @@ func LayoutQuoteField(entry stockval.AssetData, quote stockval.QuoteData, bidAsk
 
 	var callBid, callAsk op.CallOp
 	var dimsBid /*, dimsAsk*/ layout.Dimensions
-	if bidAsk.AskPrice != nil && bidAsk.BidPrice != nil {
+	if bidAsk.AskPrice != nil && bidAsk.AskPrice.CmpTotal(new(decimal.Big)) > 0 &&
+		bidAsk.BidPrice != nil && bidAsk.BidPrice.CmpTotal(new(decimal.Big)) > 0 {
 		lblBid := material.Body1(
 			th,
 			fmt.Sprintf("Bid: %f\n%d", stockval.PrepareFormattedPrice(bidAsk.BidPrice), bidAsk.BidSize),
@@ -93,4 +107,8 @@ func LayoutQuoteField(entry stockval.AssetData, quote stockval.QuoteData, bidAsk
 	textAreaAsk := op.Offset(image.Point{X: clipRect.Min.X + gtx.Dp(50) + dimsBid.Size.X, Y: clipRect.Min.Y + gtx.Dp(10) + dimsName.Size.Y + dimsQuote.Size.Y}).Push(gtx.Ops)
 	callAsk.Add(gtx.Ops)
 	textAreaAsk.Pop()
+
+	if entry.Tradable {
+		q.amountField.Layout(gtx, th, "Amount")
+	}
 }

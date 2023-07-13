@@ -44,7 +44,7 @@ type PlotScaling struct {
 }
 
 // Limit display name size
-var displayNameRegex = regexp.MustCompile(`^.{0,32}`)
+var displayNameRegex = regexp.MustCompile(`^.{0,48}`)
 
 var alphanumericRegex = regexp.MustCompile(`[^\p{L}\p{N} ]+`)
 

@@ -33,15 +33,16 @@ import (
 // Monthly candles have non-constant time differences,
 // due to different months having a different number of days.
 type Plot struct {
-	Theme            *widgets.PlotTheme
-	gridX            unit.Dp
-	zeroValueX       float64 // candle time units since Jan 1970 at zero position of plot
-	valueGridX       float64
-	pointerPressPos  f32.Point
-	Sub              []*SubPlot
-	candleResolution candles.CandleResolution
-	requestFocus     bool
-	frame            struct {
+	Theme               *widgets.PlotTheme
+	gridX               unit.Dp
+	zeroValueX          float64 // candle time units since Jan 1970 at zero position of plot
+	valueGridX          float64
+	pointerPressPos     f32.Point
+	Sub                 []*SubPlot
+	candleResolution    candles.CandleResolution
+	requestFocus        bool
+	previousPlotScaling stockval.PlotScaling
+	frame               struct {
 		totalPxSize      image.Point
 		pxGridX          int
 		axesMarginPxMin  image.Point
@@ -423,9 +424,12 @@ func (plot *Plot) GetCandleRange() (startTime time.Time, endTime time.Time, reso
 }
 
 // Call from same goroutine as Layout
-func (plot *Plot) GetPlotScalingX() stockval.PlotScaling {
-	return stockval.PlotScaling{
+func (plot *Plot) GetPlotScalingX() (stockval.PlotScaling, bool) {
+	newPlotScaling := stockval.PlotScaling{
 		Grid:      plot.gridX,
 		ValueGrid: plot.valueGridX,
 	}
+	changed := plot.previousPlotScaling != newPlotScaling
+	plot.previousPlotScaling = newPlotScaling
+	return newPlotScaling, changed
 }
