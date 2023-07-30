@@ -42,7 +42,7 @@ type PlotView struct {
 	lastCandleResolution *candles.CandleResolution // use atomic accessor
 	lastPlotTimeRange    *PlotTimeRange
 	Plot                 *stockplot.Plot
-	QuoteField           *stockplot.QuoteField
+	QuoteField           *widgets.QuoteField
 	UiIndex              int32
 	uiUpdater            StockUiUpdater
 	indicators           []indapi.IndicatorData
@@ -96,7 +96,7 @@ func (v *PlotView) Initialize(ctx context.Context, entry stockval.AssetData, can
 	v.brokerDropdown = widgets.NewDropDown(brokerList, brokerIndex)
 	v.resolutionDropDown = widgets.NewDropDown(resolutionList, int(candleResolution))
 	v.Plot = stockplot.NewPlot(v.PlotTheme, candleResolution, scalingX)
-	v.QuoteField = stockplot.NewQuoteField()
+	v.QuoteField = widgets.NewQuoteField()
 	v.UiIndex = uiIndex
 	v.uiUpdater = uiUpdater
 	v.indicators = indicators
@@ -223,6 +223,8 @@ func (v *PlotView) Layout(ctx context.Context, gtx layout.Context, th *material.
 	v.contextMenu.Options = []func(gtx layout.Context) layout.Dimensions{
 		component.MenuItem(th, v.settingsMenuItem, "Settings").Layout,
 	}
+	quote := priceData.GetQuoteCopy()
+	bidAsk := priceData.GetBidAskCopy()
 
 	layout.Stack{}.Layout(gtx,
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
@@ -268,58 +270,73 @@ func (v *PlotView) Layout(ctx context.Context, gtx layout.Context, th *material.
 						}),
 					)
 				}),
-				layout.Rigid(
-					func(gtx layout.Context) layout.Dimensions {
-						resolution := v.GetLastCandleResolution()
-						candleResolutionChanged := v.Plot.InitializeFrame(gtx, resolution)
-						d := v.Plot.Layout(gtx, th)
-						// TODO allow displaying lines instead of candles
-						//w.Plot.PlotLine(
-						//	0, // TODO hard coded plot index
-						//	priceData.RealtimeData,
-						//	color.NRGBA{R: 255, G: 255, B: 255, A: 255},
-						//	gtx.Ops,
-						//)
-						candleUpdater, loaded := priceData.LoadOrAddCandleResolution(ctx, resolution)
-						if !loaded || candleResolutionChanged {
-							refreshData = true
-							v.lastPlotTimeRange.lastPlotStartTime = time.Time{}
-							v.lastPlotTimeRange.lastPlotEndTime = time.Time{}
-						}
-						v.Plot.Sub[0].PlotCandles( // TODO hard coded plot index
-							candleUpdater.CandleData,
-							gtx,
-						)
-						for _, ind := range v.indicators {
-							ind.Update(candleUpdater.CandleData.Resolution, &candleUpdater.CandleData.PlotData)
-							ind.Plot(v.Plot.Sub[0], gtx, th)
-						}
-						quote := priceData.GetQuoteCopy()
-						bidAsk := priceData.GetBidAskCopy()
-						v.Plot.Sub[0].PlotQuoteLine( // TODO hard coded plot index
-							quote,
-							gtx,
-							th,
-						)
-						v.QuoteField.Layout(
-							v.AssetData,
-							quote,
-							bidAsk,
-							gtx.Constraints.Min,
-							gtx,
-							th,
-						)
-						v.Plot.Sub[1].PlotVolumeBars( // TODO hard coded plot index
-							candleUpdater.CandleData,
-							gtx,
-						)
-						newScalingX, scalingChanged := v.Plot.GetPlotScalingX()
-						if scalingChanged {
-							v.setLastPlotScalingX(newScalingX)
-						}
-						return d
-					},
-				),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Stack{}.Layout(gtx,
+						layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+							resolution := v.GetLastCandleResolution()
+							candleResolutionChanged := v.Plot.InitializeFrame(gtx, resolution)
+							d := v.Plot.Layout(gtx, th)
+							// TODO allow displaying lines instead of candles
+							//w.Plot.PlotLine(
+							//	0, // TODO hard coded plot index
+							//	priceData.RealtimeData,
+							//	color.NRGBA{R: 255, G: 255, B: 255, A: 255},
+							//	gtx.Ops,
+							//)
+							candleUpdater, loaded := priceData.LoadOrAddCandleResolution(ctx, resolution)
+							if !loaded || candleResolutionChanged {
+								refreshData = true
+								v.lastPlotTimeRange.lastPlotStartTime = time.Time{}
+								v.lastPlotTimeRange.lastPlotEndTime = time.Time{}
+							}
+							v.Plot.Sub[0].PlotCandles( // TODO hard coded plot index
+								candleUpdater.CandleData,
+								gtx,
+							)
+							for _, ind := range v.indicators {
+								ind.Update(candleUpdater.CandleData.Resolution, &candleUpdater.CandleData.PlotData)
+								ind.Plot(v.Plot.Sub[0], gtx, th)
+							}
+							v.Plot.Sub[0].PlotQuoteLine( // TODO hard coded plot index
+								quote,
+								gtx,
+								th,
+							)
+							v.Plot.Sub[1].PlotVolumeBars( // TODO hard coded plot index
+								candleUpdater.CandleData,
+								gtx,
+							)
+							newScalingX, scalingChanged := v.Plot.GetPlotScalingX()
+							if scalingChanged {
+								v.setLastPlotScalingX(newScalingX)
+							}
+							return d
+						}),
+						layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+							return layout.Inset{Left: 5, Top: 5}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								return layout.Flex{
+									Axis:    layout.Vertical,
+									Spacing: layout.SpaceEnd,
+								}.Layout(
+									gtx,
+									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+										return stockplot.LayoutTitleField(gtx, th, v.PlotTheme, v.AssetData)
+									}),
+									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+										return v.QuoteField.Layout(
+											gtx,
+											th,
+											v.PlotTheme,
+											v.AssetData,
+											quote,
+											bidAsk,
+										)
+									}),
+								)
+							})
+						}),
+					)
+				}),
 			)
 		},
 		),
@@ -350,6 +367,32 @@ func (v *PlotView) Layout(ctx context.Context, gtx layout.Context, th *material.
 	v.searchField.HandleInput(gtx)
 
 	return layout.Dimensions{Size: gtx.Constraints.Max}, refreshData
+}
+
+// Call in same thread as Layout()
+func (v *PlotView) GetTradeRequest() (stockapi.TradeRequest, bool) {
+	buyAmount, ok := v.QuoteField.BuyClicked()
+	if ok {
+		return stockapi.TradeRequest{
+			Asset:       v.AssetData,
+			Quantity:    buyAmount,
+			Sell:        false,
+			Type:        stockapi.OrderTypeMarket,
+			TimeInForce: stockapi.OrderTimeInForceDay,
+		}, true
+	}
+	sellAmount, ok := v.QuoteField.SellClicked()
+	if ok {
+		return stockapi.TradeRequest{
+			Asset:       v.AssetData,
+			Quantity:    sellAmount,
+			Sell:        true,
+			Type:        stockapi.OrderTypeMarket,
+			TimeInForce: stockapi.OrderTimeInForceDay,
+		}, true
+	}
+
+	return stockapi.TradeRequest{}, false
 }
 
 // Call in same thread as Layout()

@@ -421,7 +421,10 @@ func (a *StockApp) layoutPlots(ctx context.Context, gtx layout.Context) {
 					1/float32(a.numUiPlots.X),
 					func(gtx layout.Context) layout.Dimensions {
 						d, refresh := w.Layout(ctx, gtx, a.matTheme, &priceData)
-
+						tradeRequest, ok := w.GetTradeRequest()
+						if ok {
+							brokerData.tradeRequestChan <- tradeRequest
+						}
 						startTime, endTime, refreshPlot := w.UpdatePlotRange()
 						if refreshPlot {
 							candleResolution := w.GetLastCandleResolution()

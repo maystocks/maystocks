@@ -54,6 +54,8 @@ type PlotTheme struct {
 	QuoteTextColor               color.NRGBA
 	HoverTextColor               color.NRGBA
 	HoverBgColor                 color.NRGBA
+	FrameBgColor                 color.NRGBA
+	FrameTextColor               color.NRGBA
 }
 
 func NewDarkPlotTheme() *PlotTheme {
@@ -88,6 +90,8 @@ func NewDarkPlotTheme() *PlotTheme {
 		QuoteTextColor:               color.NRGBA{R: 0, G: 0, B: 0, A: 255},
 		HoverTextColor:               color.NRGBA{R: 100, G: 255, B: 100, A: 255},
 		HoverBgColor:                 color.NRGBA{R: 74, G: 74, B: 107, A: 255},
+		FrameBgColor:                 color.NRGBA{R: 50, G: 50, B: 50, A: 200},
+		FrameTextColor:               color.NRGBA{R: 255, G: 255, B: 255, A: 255},
 	}
 }
 
