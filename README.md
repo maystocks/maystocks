@@ -22,11 +22,11 @@ Left click to scroll/zoom. Right click to reopen settings after initial setup.
 
 This is a pre-alpha release of the software, trading is not yet possible, but will be added eventually.
 
-I'm self-employed. I'd love to work full time on this project, but I need to pay my bills. If you'd like to speed up development, please sponsor this project using the links above.
+If you'd like to speed up development, please sponsor this project using the links above.
 
 ### How about more indicators?
 
-More indicators will be added eventually. Again, please sponsor this project to support further development.
+More indicators will be added eventually.
 
 ### Does maystocks also support crypto data/trading?
 
