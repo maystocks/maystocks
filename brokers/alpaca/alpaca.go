@@ -561,11 +561,11 @@ func (rq *alpacaBroker) querySymbolCandles(ctx context.Context, entry stockval.A
 	for hasNextPage {
 		query := make(url.Values)
 		query.Add("timeframe", getCandleResolutionStr(resolution))
-		if fromTimeUtc.Year() < nowYear || fromTimeUtc.YearDay() < nowYearDay {
+		if fromTimeUtc.Year() < nowYear || (fromTimeUtc.Year() == nowYear && fromTimeUtc.YearDay() < nowYearDay) {
 			query.Add("start", fromTimeUtc.Format(time.RFC3339Nano))
 		}
 		toTimeUtc := toTime.UTC()
-		if toTimeUtc.Year() < nowYear || toTimeUtc.YearDay() < nowYearDay {
+		if toTimeUtc.Year() < nowYear || (toTimeUtc.Year() == nowYear && toTimeUtc.YearDay() < nowYearDay) {
 			query.Add("end", toTimeUtc.Format(time.RFC3339Nano))
 		}
 		if nextPageToken != "" {

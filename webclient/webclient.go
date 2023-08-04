@@ -6,13 +6,15 @@ package webclient
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"mime"
 	"net/http"
 )
 
 func ParseJsonResponse(resp *http.Response, v any) error {
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return fmt.Errorf("query returned error code %d", resp.StatusCode)
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("query returned error code %d (%s)", resp.StatusCode, b)
 	}
 
 	m, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
