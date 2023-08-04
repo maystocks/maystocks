@@ -67,6 +67,7 @@ type SubPlot struct {
 		printFormat                     printFormat
 		yAxesTextPosX                   int
 		projection                      projection
+		labelValues                     []float64
 		gridSegments                    []stroke.Segment
 		lineSegments                    []stroke.Segment
 		greenCandleBorderSegments       []stroke.Segment
@@ -201,13 +202,11 @@ func (sub *SubPlot) formatYlabel(value float64) string {
 func (sub *SubPlot) paintYaxesText(gtx layout.Context, th *material.Theme) (maxTextSizeX int) {
 	baseValue := sub.calcFirstGridValueY()
 	posY := int(sub.frame.projection.getYpos(baseValue))
-
-	segmentsY := stockval.CalcNumSegments(posY, sub.frame.minPos.Y, sub.frame.pxGridY)
-	labelValues := sub.calculateLabelValues(segmentsY, baseValue)
-	sub.determineFramePrintFormat(labelValues)
+	sub.calculateLabelValues(posY, baseValue)
+	sub.determineLabelPrintFormat()
 	var labelText string
-	for i := 0; i < segmentsY; i++ {
-		newLabelText := sub.formatYlabel(labelValues[i])
+	for i, v := range sub.frame.labelValues {
+		newLabelText := sub.formatYlabel(v)
 		if newLabelText == labelText {
 			continue // do not print text twice if it is unchanged due to precision
 		}
@@ -225,23 +224,25 @@ func (sub *SubPlot) paintYaxesText(gtx layout.Context, th *material.Theme) (maxT
 	return
 }
 
-func (sub *SubPlot) calculateLabelValues(segmentsY int, baseValue float64) []float64 {
-	labelValues := make([]float64, segmentsY)
+func (sub *SubPlot) calculateLabelValues(posY int, baseValue float64) {
+	segmentsY := stockval.CalcNumSegments(posY, sub.frame.minPos.Y, sub.frame.pxGridY)
+	labelValues := sub.frame.labelValues[:0]
 	for i := 0; i < segmentsY; i++ {
-		labelValues[i] = baseValue + float64(i)*sub.valueGridY
+		labelValue := baseValue + float64(i)*sub.valueGridY
 		// we do not want negative zero on our label
-		if labelValues[i] < 0 && labelValues[i] > -stockval.NearZero {
-			labelValues[i] = 0
+		if labelValue < 0 && labelValue > -stockval.NearZero {
+			labelValue = 0
 		}
+		labelValues = append(labelValues, labelValue)
 	}
-	return labelValues
+	sub.frame.labelValues = labelValues
 }
 
-func (sub *SubPlot) determineFramePrintFormat(labelValues []float64) {
+func (sub *SubPlot) determineLabelPrintFormat() {
 	printBillions := true
 	printMillions := true
 	printThousands := true
-	for i, v := range labelValues {
+	for i, v := range sub.frame.labelValues {
 		labelValueI := int64(v)
 
 		// Check whether all values are billions, millions or thousands.
