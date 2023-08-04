@@ -561,6 +561,8 @@ func (rq *alpacaBroker) querySymbolCandles(ctx context.Context, entry stockval.A
 	for hasNextPage {
 		query := make(url.Values)
 		query.Add("timeframe", getCandleResolutionStr(resolution))
+		// start/end time need to be truncated here, because otherwise alpaca will return
+		// error 422 for future dates.
 		if fromTimeUtc.Year() < nowYear || (fromTimeUtc.Year() == nowYear && fromTimeUtc.YearDay() < nowYearDay) {
 			query.Add("start", fromTimeUtc.Format(time.RFC3339Nano))
 		}

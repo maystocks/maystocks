@@ -13,7 +13,7 @@ require (
 	gioui.org/shader v1.0.6 // indirect
 	git.wow.st/gmp/jni v0.0.0-20210610011705-34026c7e22d0 // indirect
 	github.com/andybalholm/stroke v0.0.0-20221221101821-bd29b49d73f0 // indirect
-	github.com/go-text/typesetting v0.0.0-20230602202114-9797aefac433 // indirect
+	github.com/go-text/typesetting v0.0.0-20230803102845-24e03d8b5372 // indirect
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/zhangyunhao116/fastrand v0.3.0 // indirect
 	golang.org/x/exp/shiny v0.0.0-20220921164117-439092de6870 // indirect
@@ -23,8 +23,8 @@ require (
 )
 
 require (
-	gioui.org v0.0.0-20230619141907-b183774063fc
-	gioui.org/x v0.0.0-20230613140621-9d5605aaf764
+	gioui.org v0.2.0
+	gioui.org/x v0.2.0
 	github.com/barkimedes/go-deepcopy v0.0.0-20220514131651-17c30cfc62df
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/ericlagergren/decimal v0.0.0-20221120152707-495c53812d05
