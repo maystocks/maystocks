@@ -71,3 +71,7 @@ func IsGreenCandle(o, c float64) bool {
 func IsGreenQuote(percentage *decimal.Big) bool {
 	return percentage != nil && !percentage.Signbit()
 }
+
+func IsGreaterThanZero(v *decimal.Big) bool {
+	return v != nil && v.CmpTotal(new(decimal.Big)) > 0
+}

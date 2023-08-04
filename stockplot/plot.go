@@ -225,11 +225,12 @@ func (plot *Plot) InitializeFrame(gtx layout.Context, r candles.CandleResolution
 	plot.frame.subPlotMarginPxY = gtx.Dp(plot.Theme.SubPlotMarginY)
 	plot.frame.textMarginPx = plot.Theme.TextMargin.Dp(gtx)
 	plot.frame.pxGridX = gtx.Dp(plot.gridX)
-	if plot.frame.nextTextSizePx.X > 0 {
+	// Do not auto-scale down text size to avoid loops.
+	if plot.frame.nextTextSizePx.X > 0 && plot.frame.nextTextSizePx.X > plot.frame.textSizePx.X {
 		plot.frame.textSizePx.X = plot.frame.nextTextSizePx.X
 		plot.frame.nextTextSizePx.X = 0
 	}
-	if plot.frame.nextTextSizePx.Y > 0 {
+	if plot.frame.nextTextSizePx.Y > 0 && plot.frame.nextTextSizePx.Y > plot.frame.textSizePx.Y {
 		plot.frame.textSizePx.Y = plot.frame.nextTextSizePx.Y
 		plot.frame.nextTextSizePx.Y = 0
 	}

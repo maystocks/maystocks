@@ -30,6 +30,15 @@ import (
 	"github.com/zhangyunhao116/skipmap"
 )
 
+type printFormat int
+
+const (
+	printFormatDefault printFormat = iota
+	printFormatThousands
+	printFormatMillions
+	printFormatBillions
+)
+
 // All subplots of a plot have the same X values but can have different Y values
 type SubPlot struct {
 	Theme             *widgets.PlotTheme
@@ -55,8 +64,7 @@ type SubPlot struct {
 		pxGridY                         int
 		pxPosRatioY                     float64
 		plotSizeY                       float64
-		printThousands                  bool
-		printMillions                   bool
+		printFormat                     printFormat
 		yAxesTextPosX                   int
 		projection                      projection
 		gridSegments                    []stroke.Segment
@@ -178,11 +186,14 @@ func (sub *SubPlot) optimiseGridY() {
 }
 
 func (sub *SubPlot) formatYlabel(value float64) string {
-	if sub.frame.printMillions {
+	switch sub.frame.printFormat {
+	case printFormatBillions:
+		return strconv.FormatFloat(value/1000000000, 'f', sub.textPrecision, 64) + "b"
+	case printFormatMillions:
 		return strconv.FormatFloat(value/1000000, 'f', sub.textPrecision, 64) + "m"
-	} else if sub.frame.printThousands {
+	case printFormatThousands:
 		return strconv.FormatFloat(value/1000, 'f', sub.textPrecision, 64) + "k"
-	} else {
+	default:
 		return strconv.FormatFloat(value, 'f', sub.textPrecision, 64)
 	}
 }
@@ -192,25 +203,8 @@ func (sub *SubPlot) paintYaxesText(gtx layout.Context, th *material.Theme) (maxT
 	posY := int(sub.frame.projection.getYpos(baseValue))
 
 	segmentsY := stockval.CalcNumSegments(posY, sub.frame.minPos.Y, sub.frame.pxGridY)
-	labelValues := make([]float64, segmentsY)
-	printMillions := true
-	printThousands := true
-	for i := 0; i < segmentsY; i++ {
-		labelValues[i] = baseValue + float64(i)*sub.valueGridY
-		if labelValues[i] < 0 && labelValues[i] > -stockval.NearZero { // we do not want negative zero on our label
-			labelValues[i] = 0
-		}
-		labelValueI := int64(labelValues[i])
-		// Check whether all values are millions or thousands.
-		if (i != 0 && labelValueI/1000000 == 0) || labelValueI%1000000 != 0 {
-			printMillions = false
-		}
-		if (i != 0 && labelValueI/1000 == 0) || labelValueI%1000 != 0 {
-			printThousands = false
-		}
-	}
-	sub.frame.printMillions = printMillions
-	sub.frame.printThousands = printThousands
+	labelValues := sub.calculateLabelValues(segmentsY, baseValue)
+	sub.determineFramePrintFormat(labelValues)
 	var labelText string
 	for i := 0; i < segmentsY; i++ {
 		newLabelText := sub.formatYlabel(labelValues[i])
@@ -229,6 +223,45 @@ func (sub *SubPlot) paintYaxesText(gtx layout.Context, th *material.Theme) (maxT
 		stack.Pop()
 	}
 	return
+}
+
+func (sub *SubPlot) calculateLabelValues(segmentsY int, baseValue float64) []float64 {
+	labelValues := make([]float64, segmentsY)
+	for i := 0; i < segmentsY; i++ {
+		labelValues[i] = baseValue + float64(i)*sub.valueGridY
+		// we do not want negative zero on our label
+		if labelValues[i] < 0 && labelValues[i] > -stockval.NearZero {
+			labelValues[i] = 0
+		}
+	}
+	return labelValues
+}
+
+func (sub *SubPlot) determineFramePrintFormat(labelValues []float64) {
+	printBillions := true
+	printMillions := true
+	printThousands := true
+	for i, v := range labelValues {
+		labelValueI := int64(v)
+
+		// Check whether all values are billions, millions or thousands.
+		if (i != 0 && labelValueI/1000000000 == 0) || labelValueI%1000000000 != 0 {
+			printBillions = false
+		}
+		if (i != 0 && labelValueI/1000000 == 0) || labelValueI%1000000 != 0 {
+			printMillions = false
+		}
+		if (i != 0 && labelValueI/1000 == 0) || labelValueI%1000 != 0 {
+			printThousands = false
+		}
+	}
+	if printBillions {
+		sub.frame.printFormat = printFormatBillions
+	} else if printMillions {
+		sub.frame.printFormat = printFormatMillions
+	} else if printThousands {
+		sub.frame.printFormat = printFormatThousands
+	}
 }
 
 func (sub *SubPlot) paintAxes(gtx layout.Context) {
