@@ -20,7 +20,8 @@ Left click to scroll/zoom. Right click to reopen settings after initial setup.
 
 ### How do I trade?
 
-This is a pre-alpha release of the software, trading is not yet possible, but will be added eventually.
+This is a pre-alpha release of the software, only basic paper trading is currently supported (with alpaca).
+Improvements and a lot more visual feedback are on the way.
 
 If you'd like to speed up development, please sponsor this project using the links above.
 

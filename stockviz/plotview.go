@@ -323,14 +323,16 @@ func (v *PlotView) Layout(ctx context.Context, gtx layout.Context, th *material.
 										return stockplot.LayoutTitleField(gtx, th, v.PlotTheme, v.AssetData)
 									}),
 									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-										return v.QuoteField.Layout(
-											gtx,
-											th,
-											v.PlotTheme,
-											v.AssetData,
-											quote,
-											bidAsk,
-										)
+										return layout.Inset{Left: 30}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+											return v.QuoteField.Layout(
+												gtx,
+												th,
+												v.PlotTheme,
+												v.AssetData,
+												quote,
+												bidAsk,
+											)
+										})
 									}),
 								)
 							})
