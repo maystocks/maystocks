@@ -20,6 +20,6 @@ func (h TradingHours) GetTradingState(t time.Time) string {
 	} else if t.Before(h.Close) {
 		return ""
 	} else {
-		return "Extended Hours"
+		return "After-Hours"
 	}
 }

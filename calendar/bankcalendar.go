@@ -36,19 +36,8 @@ func NewUSBankCalendar() BankCalendar {
 	}
 	cal := cal.NewBusinessCalendar()
 	// Source for bank holidays: https://www.federalreserve.gov/aboutthefed/k8.htm
-	cal.AddHoliday(
-		us.NewYear,
-		us.MlkDay,
-		us.PresidentsDay,
-		us.MemorialDay,
-		us.Juneteenth,
-		us.IndependenceDay,
-		us.LaborDay,
-		us.ColumbusDay,
-		us.VeteransDay,
-		us.ThanksgivingDay,
-		us.ChristmasDay,
-	)
+	// Same as standard national holidays.
+	cal.AddHoliday(us.Holidays...)
 	cal.Cacheable = true
 	return BankCalendar{
 		calendar:                cal,
@@ -77,14 +66,14 @@ func (b BankCalendar) IsTradingDay(t time.Time) (trading bool, partial bool) {
 	trading = b.calendar.IsWorkday(day)
 
 	if trading {
-		holiday, name := b.IsBankHoliday(day.AddDate(0, 0, 1))
+		isHoliday, _, h := b.calendar.IsHoliday(day.AddDate(0, 0, 1))
 		// There are partial trading days before independence day and christmas.
-		if holiday && (name == us.IndependenceDay.Name || name == us.ChristmasDay.Name) {
+		if isHoliday && (h == us.IndependenceDay || h == us.ChristmasDay) {
 			partial = true
 		} else {
-			// There is a partial trading day before thanksgiving
-			holiday, name = b.IsBankHoliday(day.AddDate(0, 0, -1))
-			if holiday && name == us.ThanksgivingDay.Name {
+			// There is a partial trading day after thanksgiving
+			isHoliday, _, h = b.calendar.IsHoliday(day.AddDate(0, 0, -1))
+			if isHoliday && h == us.ThanksgivingDay {
 				partial = true
 			}
 		}
