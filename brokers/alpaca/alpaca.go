@@ -20,7 +20,6 @@ import (
 	"maystocks/webclient"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/ericlagergren/decimal"
@@ -781,7 +780,7 @@ func (rq *alpacaBroker) TradeAsset(ctx context.Context, request <-chan stockapi.
 }
 
 func (rq *alpacaBroker) tradeStockAsset(ctx context.Context, req stockapi.TradeRequest, paperTrading bool) stockapi.TradeResponse {
-	if !paperTrading || !strings.Contains(rq.config.PaperTradingUrl, "paper") { // TODO support real trading
+	if !paperTrading { // TODO support real trading
 		return stockapi.TradeResponse{
 			RequestId: req.RequestId,
 			Figi:      req.Asset.Figi,

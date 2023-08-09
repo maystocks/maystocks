@@ -32,6 +32,7 @@ require (
 	github.com/gorilla/websocket v1.5.0
 	github.com/lotodore/localcache v0.0.0-20230412123518-3323bdbf3de4
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/rickar/cal/v2 v2.1.13
 	github.com/stretchr/testify v1.8.4
 	github.com/zhangyunhao116/skipmap v0.10.1
 	golang.org/x/crypto v0.9.0

@@ -22,6 +22,7 @@ import (
 const testFigi = "BBG000B9XRY4"
 const testIsin = "US0378331005"
 const testSymbol = "AAPL"
+const testOrderId = "61e69015-8549-4bfd-b9c3-01e75843f47d"
 
 func TestQueryQuote(t *testing.T) {
 	srv := newAlpacaMock()
@@ -45,6 +46,7 @@ func TestQueryCandles(t *testing.T) {
 	srv := newAlpacaMock()
 	defer srv.Close()
 	c := make(chan stockapi.CandlesRequest, 1)
+	defer close(c)
 	response := make(chan stockapi.QueryCandlesResponse, 1)
 	broker := NewBroker(nil)
 	err := broker.ReadConfig(newAlpacaConfig(srv.URL, srv.URL))
@@ -87,6 +89,30 @@ func TestQueryCandles(t *testing.T) {
 		assert.Equal(t, 0, data[i].Volume.CmpTotal(c.Volume), "volume at index %d invalid", i)
 		assert.Equal(t, data[i].Timestamp, c.Timestamp)
 	}
+}
+
+func TestTradeAsset(t *testing.T) {
+	srv := newAlpacaMock()
+	defer srv.Close()
+	c := make(chan stockapi.TradeRequest, 1)
+	defer close(c)
+	response := make(chan stockapi.TradeResponse, 1)
+	broker := NewBroker(nil)
+	err := broker.ReadConfig(newAlpacaConfig(srv.URL, srv.URL))
+	assert.NoError(t, err)
+	go broker.TradeAsset(context.Background(), c, response, true)
+	c <- stockapi.TradeRequest{
+		RequestId: "Test",
+		Asset:     stockval.AssetData{Figi: testFigi, Isin: testIsin, Symbol: testSymbol},
+		Quantity:  decimal.New(10, 0),
+		Sell:      false,
+		Type:      stockapi.OrderTypeMarket,
+	}
+	responseData := <-response
+	assert.NoError(t, responseData.Error)
+	assert.Equal(t, "Test", responseData.RequestId)
+	assert.Equal(t, testFigi, responseData.Figi)
+	assert.Equal(t, testOrderId, responseData.OrderId)
 }
 
 func getQuoteResultMock(w http.ResponseWriter, r *http.Request) {
@@ -176,9 +202,48 @@ func getStockCandleResultMock(w http.ResponseWriter, r *http.Request) {
 				"vw": 171.233976
 			}
 			],
-			"symbol": "AAPL"
+			"symbol": "` + testSymbol + `"
 		}`
 	}
+	_, _ = w.Write([]byte(reply)) // ignore errors, test will fail anyway in case Write fails
+}
+
+func postOrderMock(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	reply := `{
+		"id": "` + testOrderId + `",
+		"client_order_id": "eb9e2aaa-f71a-4f51-b5b4-52a6c565dad4",
+		"created_at": "2021-03-16T18:38:01.942282Z",
+		"updated_at": "2021-03-16T18:38:01.942282Z",
+		"submitted_at": "2021-03-16T18:38:01.937734Z",
+		"filled_at": null,
+		"expired_at": null,
+		"canceled_at": null,
+		"failed_at": null,
+		"replaced_at": null,
+		"replaced_by": null,
+		"replaces": null,
+		"asset_id": "b0b6dd9d-8b9b-48a9-ba46-b9d54906e415",
+		"symbol": "` + testSymbol + `",
+		"asset_class": "us_equity",
+		"notional": "500",
+		"qty": null,
+		"filled_qty": "0",
+		"filled_avg_price": null,
+		"order_class": "",
+		"order_type": "market",
+		"type": "market",
+		"side": "buy",
+		"time_in_force": "day",
+		"limit_price": null,
+		"stop_price": null,
+		"status": "accepted",
+		"extended_hours": false,
+		"legs": null,
+		"trail_percent": null,
+		"trail_price": null,
+		"hwm": null
+	  }`
 	_, _ = w.Write([]byte(reply)) // ignore errors, test will fail anyway in case Write fails
 }
 
@@ -186,6 +251,7 @@ func newAlpacaMock() *httptest.Server {
 	handler := http.NewServeMux()
 	handler.HandleFunc("/stocks/"+testSymbol+"/snapshot", getQuoteResultMock)
 	handler.HandleFunc("/stocks/"+testSymbol+"/bars", getStockCandleResultMock)
+	handler.HandleFunc("/orders", postOrderMock)
 
 	return httptest.NewServer(handler)
 }

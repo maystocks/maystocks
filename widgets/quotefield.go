@@ -6,7 +6,9 @@ package widgets
 import (
 	"fmt"
 	"image"
+	"maystocks/calendar"
 	"maystocks/stockval"
+	"time"
 
 	"gioui.org/layout"
 	"gioui.org/text"
@@ -17,6 +19,7 @@ import (
 )
 
 type QuoteField struct {
+	calendar    calendar.BankCalendar
 	amountField component.TextField
 	buttonBuy   widget.Clickable
 	buttonSell  widget.Clickable
@@ -24,6 +27,7 @@ type QuoteField struct {
 
 func NewQuoteField() *QuoteField {
 	return &QuoteField{
+		calendar: calendar.NewUSBankCalendar(),
 		amountField: component.TextField{
 			Editor: widget.Editor{Submit: true, SingleLine: true, MaxLen: 32},
 		},
@@ -54,6 +58,7 @@ func (q *QuoteField) BuyClicked() (*decimal.Big, bool) {
 func (q *QuoteField) Layout(gtx layout.Context, th *material.Theme, pth *PlotTheme, entry stockval.AssetData, quote stockval.QuoteData,
 	bidAsk stockval.RealtimeBidAskData) layout.Dimensions {
 	var tradeFieldDims layout.Dimensions
+	var quoteLabelDims layout.Dimensions
 
 	amount, ok := q.amount()
 	hasAmount := ok && stockval.IsGreaterThanZero(amount)
@@ -127,7 +132,34 @@ func (q *QuoteField) Layout(gtx layout.Context, th *material.Theme, pth *PlotThe
 				lblQuote.Color = pth.FrameTextColor
 				lblQuote.Alignment = text.Middle
 				gtx.Constraints.Min.X = tradeFieldDims.Size.X
-				return lblQuote.Layout(gtx)
+				quoteLabelDims = lblQuote.Layout(gtx)
+				return quoteLabelDims
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				var hintText string
+				tradingTime := time.Now()
+				isHoliday, holidayName := q.calendar.IsBankHoliday(tradingTime)
+				if isHoliday {
+					hintText = holidayName
+				} else {
+					trading, _, h := q.calendar.GetTradingHours(tradingTime)
+					if trading {
+						hintText = h.GetTradingState(tradingTime)
+					} else {
+						hintText = "Weekend (no trading)"
+					}
+				}
+				if len(hintText) == 0 {
+					return layout.Dimensions{}
+				}
+				lblHint := material.Body1(
+					th,
+					hintText,
+				)
+				lblHint.Color = pth.FrameTextColor
+				lblHint.Alignment = text.Middle
+				gtx.Constraints.Min.X = quoteLabelDims.Size.X
+				return lblHint.Layout(gtx)
 			}),
 		)
 	})

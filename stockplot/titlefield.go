@@ -14,9 +14,7 @@ import (
 
 func LayoutTitleField(gtx layout.Context, th *material.Theme, pth *widgets.PlotTheme, entry stockval.AssetData) layout.Dimensions {
 	return widgets.Frame{InnerMargin: 5, BorderWidth: 1, BorderColor: pth.FrameBgColor, BackgroundColor: pth.FrameBgColor}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return layout.Flex{
-			Axis: layout.Vertical,
-		}.Layout(
+		return layout.Flex{}.Layout(
 			gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				lblName := material.H6(
