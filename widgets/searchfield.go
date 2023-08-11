@@ -5,7 +5,6 @@ package widgets
 
 import (
 	"math"
-	"maystocks/indapi/calc"
 	"maystocks/stockval"
 	"sync"
 
@@ -262,7 +261,7 @@ func (f *SearchField) Layout(gtx layout.Context, th *material.Theme, pth *PlotTh
 							isSelected := index == f.selectedIndex
 							return item.click.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 								// Correct rendering might be one frame delayed, first frame may have invalid selection size.
-								gtx.Constraints.Min.X = calc.Max(gtx.Constraints.Min.X, f.minItemSizeX)
+								gtx.Constraints.Min.X = max(gtx.Constraints.Min.X, f.minItemSizeX)
 								// Record macro only for the selected entry, because a different background is drawn.
 								var macro op.MacroOp
 								if isSelected {

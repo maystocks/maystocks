@@ -4,7 +4,6 @@
 package stockval
 
 import (
-	"maystocks/indapi/calc"
 	"strconv"
 
 	"github.com/ericlagergren/decimal"
@@ -60,7 +59,7 @@ func CalcNumSegments(pos int, margin int, grid int) int {
 	if grid == 0 {
 		return 0
 	}
-	return calc.Max((pos-margin+grid)/grid, 0)
+	return max((pos-margin+grid)/grid, 0)
 }
 
 func IsGreenCandle(o, c float64) bool {

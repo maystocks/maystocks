@@ -9,20 +9,6 @@ import (
 	"github.com/ericlagergren/decimal"
 )
 
-func Min(i0, i1 int) int {
-	if i0 < i1 {
-		return i0
-	}
-	return i1
-}
-
-func Max(i0, i1 int) int {
-	if i0 > i1 {
-		return i0
-	}
-	return i1
-}
-
 func Mean(out *decimal.Big, val []indapi.CandleData) *decimal.Big {
 	out.SetUint64(0)
 	for i := range val {

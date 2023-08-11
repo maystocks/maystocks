@@ -80,7 +80,7 @@ func (d *Indicator) Update(r candles.CandleResolution, data *indapi.PlotData) {
 		d.bottom = d.bottom[:0]
 		for i := range data.Data {
 			d.timestamps = append(d.timestamps, data.Data[i].Timestamp)
-			subSet := data.Data[calc.Max(0, i+1-d.timeUnits) : i+1]
+			subSet := data.Data[max(0, i+1-d.timeUnits) : i+1]
 			if len(subSet) > 0 {
 				mean := calc.Mean(new(decimal.Big), subSet)
 				meanTop := new(decimal.Big).Copy(mean)

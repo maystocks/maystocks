@@ -12,7 +12,6 @@ import (
 	"io"
 	"log"
 	"maystocks/config"
-	"maystocks/indapi/calc"
 	"maystocks/stockapi"
 	"maystocks/stockval"
 	"maystocks/webclient"
@@ -91,7 +90,7 @@ func (rq *openFigiSearchTool) GetCapabilities() stockapi.Capabilities {
 }
 
 func (rq *openFigiSearchTool) RemainingApiLimit() int {
-	return calc.Min(rq.mappingRateLimiter.Remaining(), rq.searchRateLimiter.Remaining())
+	return min(rq.mappingRateLimiter.Remaining(), rq.searchRateLimiter.Remaining())
 }
 
 func (rq *openFigiSearchTool) createOpenFigiRequest(cmd string, body io.Reader) (*http.Request, error) {

@@ -1,6 +1,6 @@
 module maystocks
 
-go 1.18
+go 1.21
 
 require (
 	github.com/inkeliz/giohyperlink v0.0.0-20220903215451-2ac5d54abdce

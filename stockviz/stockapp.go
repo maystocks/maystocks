@@ -9,7 +9,6 @@ import (
 	"log"
 	"maystocks/config"
 	"maystocks/indapi"
-	"maystocks/indapi/calc"
 	"maystocks/indapi/candles"
 	"maystocks/indapi/indicators"
 	"maystocks/stockapi"
@@ -637,5 +636,5 @@ func (a *StockApp) ShowSettings() {
 
 func (a *StockApp) ShowIndicators(uiIndex int32) {
 	a.uiState = StateIndicators
-	a.indicatorsIndex = calc.Max(0, int(uiIndex)-1)
+	a.indicatorsIndex = max(0, int(uiIndex)-1)
 }

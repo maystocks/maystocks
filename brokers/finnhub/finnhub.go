@@ -12,7 +12,6 @@ import (
 	"maystocks/cache"
 	"maystocks/config"
 	"maystocks/indapi"
-	"maystocks/indapi/calc"
 	"maystocks/indapi/candles"
 	"maystocks/stockapi"
 	"maystocks/stockval"
@@ -193,7 +192,7 @@ func (rq *finnhubBroker) GetCapabilities() stockapi.Capabilities {
 }
 
 func (rq *finnhubBroker) RemainingApiLimit() int {
-	return calc.Min(rq.perSecondRateLimiter.Remaining(), rq.rateLimiter.Remaining())
+	return min(rq.perSecondRateLimiter.Remaining(), rq.rateLimiter.Remaining())
 }
 
 func (rq *finnhubBroker) createRequest(ctx context.Context, cmd string) (*http.Request, error) {

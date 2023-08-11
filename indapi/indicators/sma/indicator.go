@@ -71,7 +71,7 @@ func (d *Indicator) Update(r candles.CandleResolution, data *indapi.PlotData) {
 		d.sma = d.sma[:0]
 		for i := range data.Data {
 			d.timestamps = append(d.timestamps, data.Data[i].Timestamp)
-			subSet := data.Data[calc.Max(0, i+1-d.numPeriods) : i+1]
+			subSet := data.Data[max(0, i+1-d.numPeriods) : i+1]
 			if len(subSet) > 0 {
 				mean := calc.Mean(new(decimal.Big), subSet)
 				d.sma = append(d.sma, mean)
