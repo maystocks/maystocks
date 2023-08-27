@@ -5,6 +5,7 @@ package alpaca
 
 import (
 	"context"
+	"encoding/json"
 	"maystocks/config"
 	"maystocks/indapi"
 	"maystocks/indapi/candles"
@@ -12,10 +13,12 @@ import (
 	"maystocks/stockval"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/ericlagergren/decimal"
+	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -30,7 +33,7 @@ func TestQueryQuote(t *testing.T) {
 	isin := make(chan stockval.AssetData, 1)
 	response := make(chan stockapi.QueryQuoteResponse, 1)
 	broker := NewBroker(nil)
-	err := broker.ReadConfig(newAlpacaConfig(srv.URL, srv.URL))
+	err := broker.ReadConfig(newAlpacaConfig(srv.URL))
 	assert.NoError(t, err)
 	go broker.QueryQuote(context.Background(), isin, response)
 	isin <- stockval.AssetData{Figi: testFigi, Isin: testIsin, Symbol: testSymbol}
@@ -49,7 +52,7 @@ func TestQueryCandles(t *testing.T) {
 	defer close(c)
 	response := make(chan stockapi.QueryCandlesResponse, 1)
 	broker := NewBroker(nil)
-	err := broker.ReadConfig(newAlpacaConfig(srv.URL, srv.URL))
+	err := broker.ReadConfig(newAlpacaConfig(srv.URL))
 	assert.NoError(t, err)
 	go broker.QueryCandles(context.Background(), c, response)
 	c <- stockapi.CandlesRequest{
@@ -91,6 +94,63 @@ func TestQueryCandles(t *testing.T) {
 	}
 }
 
+func TestSubscribeData(t *testing.T) {
+	srv := newAlpacaWsMock()
+	defer srv.Close()
+	c := make(chan stockapi.SubscribeDataRequest)
+	defer close(c)
+	response := make(chan stockapi.SubscribeDataResponse)
+	broker := NewBroker(nil)
+	err := broker.ReadConfig(newAlpacaConfig(srv.URL))
+	assert.NoError(t, err)
+	go broker.SubscribeData(context.Background(), c, response)
+	c <- stockapi.SubscribeDataRequest{
+		Asset: stockval.AssetData{Figi: testFigi, Isin: testIsin, Symbol: testSymbol},
+		Type:  stockapi.RealtimeTradesSubscribe,
+	}
+	responseData := <-response
+	assert.Equal(t, testFigi, responseData.Figi)
+	assert.Equal(t, stockapi.RealtimeTradesSubscribe, responseData.Type)
+	assert.Nil(t, responseData.Error)
+}
+
+func TestSubscribeDataError(t *testing.T) {
+	srv := newAlpacaWsMock()
+	defer srv.Close()
+	c := make(chan stockapi.SubscribeDataRequest)
+	defer close(c)
+	response := make(chan stockapi.SubscribeDataResponse)
+	broker := NewBroker(nil)
+	err := broker.ReadConfig(newAlpacaConfig(srv.URL))
+	assert.NoError(t, err)
+	go broker.SubscribeData(context.Background(), c, response)
+	c <- stockapi.SubscribeDataRequest{}
+	responseData := <-response
+	assert.NotNil(t, responseData.Error)
+}
+
+func TestSubscribeDataRealtime(t *testing.T) {
+	srv := newAlpacaWsMock()
+	defer srv.Close()
+	c := make(chan stockapi.SubscribeDataRequest)
+	defer close(c)
+	response := make(chan stockapi.SubscribeDataResponse)
+	broker := NewBroker(nil)
+	err := broker.ReadConfig(newAlpacaConfig(srv.URL))
+	assert.NoError(t, err)
+	go broker.SubscribeData(context.Background(), c, response)
+	c <- stockapi.SubscribeDataRequest{
+		Asset: stockval.AssetData{Figi: testFigi, Isin: testIsin, Symbol: testSymbol},
+		Type:  stockapi.RealtimeTradesSubscribe,
+	}
+	responseData := <-response
+	assert.Nil(t, responseData.Error)
+	assert.NotNil(t, responseData.TickData)
+	tickData := <-responseData.TickData
+	assert.NotNil(t, tickData.Price)
+	assert.NotNil(t, tickData.Volume)
+}
+
 func TestTradeAsset(t *testing.T) {
 	srv := newAlpacaMock()
 	defer srv.Close()
@@ -98,7 +158,7 @@ func TestTradeAsset(t *testing.T) {
 	defer close(c)
 	response := make(chan stockapi.TradeResponse, 1)
 	broker := NewBroker(nil)
-	err := broker.ReadConfig(newAlpacaConfig(srv.URL, srv.URL))
+	err := broker.ReadConfig(newAlpacaConfig(srv.URL))
 	assert.NoError(t, err)
 	go broker.TradeAsset(context.Background(), c, response, true)
 	c <- stockapi.TradeRequest{
@@ -247,6 +307,76 @@ func postOrderMock(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(reply)) // ignore errors, test will fail anyway in case Write fails
 }
 
+func webSocketHandler(w http.ResponseWriter, r *http.Request) {
+	// Upgrade test http connection to a websocket connection.
+	webSocketUpgrader := websocket.Upgrader{}
+	conn, err := webSocketUpgrader.Upgrade(w, r, nil)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	defer conn.Close()
+
+	connectedMsg := []realtimeMessage{
+		{
+			Type: messageTypeSuccess,
+			Msg:  messageConnected,
+		},
+	}
+	connMsg, _ := json.Marshal(connectedMsg)
+	_ = conn.WriteMessage(int(websocket.TextMessage), connMsg)
+
+	for {
+		messageType, p, err := conn.ReadMessage()
+		if err != nil {
+			break // connection was closed
+		}
+		if messageType != websocket.TextMessage {
+			w.WriteHeader(http.StatusBadRequest)
+			break
+		}
+		var cmd realtimeSubscribeCommand
+		err = json.Unmarshal(p, &cmd)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			break
+		}
+		if cmd.Action == "auth" {
+			connectedMsg := []realtimeMessage{
+				{
+					Type: messageTypeSuccess,
+					Msg:  messageAuthenticated,
+				},
+			}
+			connMsg, _ := json.Marshal(connectedMsg)
+			_ = conn.WriteMessage(int(websocket.TextMessage), connMsg)
+		} else if cmd.Action == "subscribe" {
+			for _, symbol := range cmd.Trades {
+				// send a realtime message as response to a trades subscription request
+				data := []realtimeMessage{
+					{
+						Symbol:    symbol,
+						Type:      messageTypeTrade,
+						Timestamp: time.Now(),
+						Price:     decimal.New(11615, 2),
+						TradeSize: decimal.New(54109, 0),
+					},
+				}
+				d, err := json.Marshal(data)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				err = conn.WriteMessage(int(websocket.TextMessage), d)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+			}
+		}
+	}
+}
+
 func newAlpacaMock() *httptest.Server {
 	handler := http.NewServeMux()
 	handler.HandleFunc("/stocks/"+testSymbol+"/snapshot", getQuoteResultMock)
@@ -256,12 +386,17 @@ func newAlpacaMock() *httptest.Server {
 	return httptest.NewServer(handler)
 }
 
-func newAlpacaConfig(dataUrl string, tradingUrl string) config.Config {
+func newAlpacaWsMock() *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(webSocketHandler))
+}
+
+func newAlpacaConfig(dataUrl string) config.Config {
 	c := config.NewTestConfig()
 	appConfig, _ := c.Lock()
 	brokerConfig := appConfig.BrokerConfig[GetBrokerId()]
 	brokerConfig.DataUrl = dataUrl
-	brokerConfig.PaperTradingUrl = tradingUrl
+	brokerConfig.WsUrl = "ws" + strings.TrimPrefix(dataUrl, "http")
+	brokerConfig.PaperTradingUrl = dataUrl
 	appConfig.BrokerConfig[GetBrokerId()] = brokerConfig
 	_ = c.Unlock(appConfig, true)
 	return c

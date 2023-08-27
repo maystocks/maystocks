@@ -75,7 +75,7 @@ func TestIsTradingDayPartial(t *testing.T) {
 	assert.False(t, trading)
 	assert.False(t, partial)
 
-	// Christmas eve is Friday in 2021, but observed holiday, no trading
+	// Christmas eve is Friday in 2021, but an observed holiday, no trading
 	trading, partial = c.IsTradingDay(time.Date(2021, 12, 24, 0, 0, 0, 0, c.bankLocation))
 	assert.False(t, trading)
 	assert.False(t, partial)

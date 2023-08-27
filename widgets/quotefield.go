@@ -5,65 +5,39 @@ package widgets
 
 import (
 	"fmt"
-	"image"
 	"maystocks/calendar"
 	"maystocks/stockval"
 	"time"
 
 	"gioui.org/layout"
 	"gioui.org/text"
-	"gioui.org/widget"
 	"gioui.org/widget/material"
-	"gioui.org/x/component"
-	"github.com/ericlagergren/decimal"
 )
 
 type QuoteField struct {
-	calendar    calendar.BankCalendar
-	amountField component.TextField
-	buttonBuy   widget.Clickable
-	buttonSell  widget.Clickable
+	calendar   calendar.BankCalendar
+	buttonSell *LinkButton
+	buttonBuy  *LinkButton
 }
 
-func NewQuoteField() *QuoteField {
-	return &QuoteField{
+func NewQuoteField(tradingAppUrl string) *QuoteField {
+
+	q := QuoteField{
 		calendar: calendar.NewUSBankCalendar(),
-		amountField: component.TextField{
-			Editor: widget.Editor{Submit: true, SingleLine: true, MaxLen: 32},
-		},
 	}
-}
-
-func (q *QuoteField) SellClicked() (*decimal.Big, bool) {
-	if q.buttonSell.Clicked() {
-		amount, ok := new(decimal.Big).SetString(q.amountField.Text())
-		return amount, ok
-	} else {
-		return nil, false
+	if len(tradingAppUrl) > 0 {
+		q.buttonSell = &LinkButton{}
+		q.buttonSell.SetUrl(tradingAppUrl, "")
+		q.buttonBuy = &LinkButton{}
+		q.buttonBuy.SetUrl(tradingAppUrl, "")
 	}
-}
-
-func (q *QuoteField) amount() (*decimal.Big, bool) {
-	return new(decimal.Big).SetString(q.amountField.Text())
-}
-
-func (q *QuoteField) BuyClicked() (*decimal.Big, bool) {
-	if q.buttonBuy.Clicked() {
-		return q.amount()
-	} else {
-		return nil, false
-	}
+	return &q
 }
 
 func (q *QuoteField) Layout(gtx layout.Context, th *material.Theme, pth *PlotTheme, entry stockval.AssetData, quote stockval.QuoteData,
 	bidAsk stockval.RealtimeBidAskData) layout.Dimensions {
 	var tradeFieldDims layout.Dimensions
 	var quoteLabelDims layout.Dimensions
-
-	amount, ok := q.amount()
-	hasAmount := ok && stockval.IsGreaterThanZero(amount)
-	canSell := false
-	canBuy := false
 
 	return Frame{InnerMargin: 5, BorderWidth: 1, BorderColor: pth.FrameBgColor, BackgroundColor: pth.FrameBgColor}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{
@@ -72,7 +46,7 @@ func (q *QuoteField) Layout(gtx layout.Context, th *material.Theme, pth *PlotThe
 		}.Layout(
 			gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				if !entry.Tradable {
+				if !entry.Tradable || q.buttonSell == nil || q.buttonBuy == nil {
 					return layout.Dimensions{}
 				}
 				tradeFieldDims = layout.Flex{}.Layout(
@@ -80,35 +54,22 @@ func (q *QuoteField) Layout(gtx layout.Context, th *material.Theme, pth *PlotThe
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						var sellText string
 						if stockval.IsGreaterThanZero(bidAsk.BidPrice) {
-							canSell = true
 							sellText = fmt.Sprintf("Sell\n%f\n%d", stockval.PrepareFormattedPrice(bidAsk.BidPrice), bidAsk.BidSize)
 						} else {
 							sellText = "Sell\n--\n--"
 						}
-						sellButton := material.Button(th, &q.buttonSell, sellText)
-						if !hasAmount || !canSell {
-							gtx = gtx.Disabled()
-						}
-						return sellButton.Layout(gtx)
-					}),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						gtx.Constraints = gtx.Constraints.AddMin(image.Point{X: gtx.Dp(100)})
-						gtx.Constraints.Max.X = gtx.Constraints.Min.X
-						return q.amountField.Layout(gtx, th, "Amount")
+						q.buttonSell.UpdateText(sellText)
+						return q.buttonSell.Layout(th, gtx)
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						var buyText string
 						if stockval.IsGreaterThanZero(bidAsk.AskPrice) {
-							canBuy = true
 							buyText = fmt.Sprintf("Buy\n%f\n%d", stockval.PrepareFormattedPrice(bidAsk.AskPrice), bidAsk.AskSize)
 						} else {
 							buyText = "Buy\n--\n--"
 						}
-						buyButton := material.Button(th, &q.buttonBuy, buyText)
-						if !hasAmount || !canBuy {
-							gtx = gtx.Disabled()
-						}
-						return buyButton.Layout(gtx)
+						q.buttonBuy.UpdateText(buyText)
+						return q.buttonBuy.Layout(th, gtx)
 					}),
 				)
 				return tradeFieldDims

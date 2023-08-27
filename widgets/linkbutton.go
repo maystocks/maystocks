@@ -5,6 +5,7 @@ package widgets
 
 import (
 	"log"
+	"strings"
 
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
@@ -12,6 +13,8 @@ import (
 	"gioui.org/widget/material"
 	"github.com/inkeliz/giohyperlink"
 )
+
+const linkPostfix = "  »"
 
 type LinkButton struct {
 	linkTarget string
@@ -26,7 +29,13 @@ func (l *LinkButton) SetUrl(url string, text string) {
 	} else {
 		l.linkText = url
 	}
-	l.linkText += "  »"
+	l.linkText += linkPostfix
+}
+
+func (l *LinkButton) UpdateText(text string) {
+	if !strings.HasPrefix(l.linkText, text) {
+		l.linkText = text + linkPostfix
+	}
 }
 
 func (l *LinkButton) Url() string {

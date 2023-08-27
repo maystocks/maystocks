@@ -5,6 +5,7 @@ package stockviz
 
 import (
 	"context"
+	"fmt"
 	"image"
 	"log"
 	"maystocks/config"
@@ -46,6 +47,7 @@ type PlotView struct {
 	UiIndex              int32
 	uiUpdater            StockUiUpdater
 	indicators           []indapi.IndicatorData
+	appTradingUrl        string
 	SearchRequestChan    chan stockapi.SearchRequest
 	SearchResponseChan   chan stockapi.SearchResponse
 	scalingX             *stockval.PlotScaling
@@ -75,34 +77,34 @@ func NewPlotView(brokerList stockval.BrokerList, theme *widgets.PlotTheme) PlotV
 	}
 }
 
-func (v *PlotView) Initialize(ctx context.Context, entry stockval.AssetData, candleResolution candles.CandleResolution,
-	uiIndex int32, brokerName stockval.BrokerId, symbolSearchTool stockapi.SymbolSearchTool, uiUpdater StockUiUpdater,
-	indicators []indapi.IndicatorData, scalingX stockval.PlotScaling) {
-	v.AssetData = entry
-	v.searchField = widgets.NewSearchField(entry.Symbol)
+func (v *PlotView) Initialize(ctx context.Context, plotData plotData, symbolSearchTool stockapi.SymbolSearchTool, uiUpdater StockUiUpdater, appTradingUrl string) {
+	v.AssetData = plotData.Entry
+	v.searchField = widgets.NewSearchField(plotData.Entry.Symbol)
 	brokerList := make([]string, len(v.brokerList))
 	for i, v := range v.brokerList {
 		brokerList[i] = string(v)
 	}
-	brokerIndex := stockval.IndexOf(v.brokerList, brokerName)
+	brokerIndex := stockval.IndexOf(v.brokerList, plotData.BrokerName)
 	if brokerIndex < 0 {
 		panic("unknown data broker")
 	}
 	resolutionList := candles.CandleResolutionUiStringList()
-	if int(candleResolution) >= len(resolutionList) {
+	if int(plotData.CandleResolution) >= len(resolutionList) {
 		panic("unknown candle resolution")
 	}
 
 	v.brokerDropdown = widgets.NewDropDown(brokerList, brokerIndex)
-	v.resolutionDropDown = widgets.NewDropDown(resolutionList, int(candleResolution))
-	v.Plot = stockplot.NewPlot(v.PlotTheme, candleResolution, scalingX)
-	v.QuoteField = widgets.NewQuoteField()
-	v.UiIndex = uiIndex
+	v.resolutionDropDown = widgets.NewDropDown(resolutionList, int(plotData.CandleResolution))
+	v.Plot = stockplot.NewPlot(v.PlotTheme, plotData.CandleResolution, plotData.ScalingX)
+	fullAppTradingUrl := fmt.Sprintf(appTradingUrl, plotData.Entry.Symbol)
+	v.QuoteField = widgets.NewQuoteField(fullAppTradingUrl)
+	v.UiIndex = plotData.UiIndex
 	v.uiUpdater = uiUpdater
-	v.indicators = indicators
+	v.indicators = plotData.Indicators
+	v.appTradingUrl = appTradingUrl
 
 	atomic.StoreInt32(v.lastBroker, int32(brokerIndex))
-	atomic.StoreInt32((*int32)(v.lastCandleResolution), int32(candleResolution))
+	atomic.StoreInt32((*int32)(v.lastCandleResolution), int32(plotData.CandleResolution))
 
 	// TODO size of buffered channels?
 	v.SearchRequestChan = make(chan stockapi.SearchRequest, 10)
@@ -159,7 +161,18 @@ func (v *PlotView) handleSearchResult(ctx context.Context) {
 					v.uiUpdater.UpdatePlot(v.UiIndex, newPlotView)
 				} else {
 					v.uiUpdater.RemovePlot(v.AssetData, v.UiIndex)
-					v.uiUpdater.AddPlot(ctx, searchResponse.Result[0], v.GetLastCandleResolution(), v.GetLastBrokerName(), v.UiIndex, v.indicators, v.GetLastPlotScalingX())
+					v.uiUpdater.AddPlot(
+						ctx,
+						plotData{
+							searchResponse.Result[0],
+							v.GetLastCandleResolution(),
+							v.GetLastBrokerName(),
+							v.UiIndex,
+							v.indicators,
+							v.GetLastPlotScalingX(),
+						},
+						v.appTradingUrl,
+					)
 					v.uiUpdater.Invalidate()
 				}
 			}
@@ -200,7 +213,17 @@ func (v *PlotView) handleInput(ctx context.Context, gtx layout.Context) {
 		if atomic.LoadInt32(v.lastBroker) != brokerIndex {
 			// It is safe to do this asynchronously.
 			v.uiUpdater.RemovePlot(v.AssetData, v.UiIndex)
-			v.uiUpdater.AddPlot(ctx, v.AssetData, v.GetLastCandleResolution(), v.brokerList[brokerIndex], v.UiIndex, v.indicators, v.GetLastPlotScalingX())
+			v.uiUpdater.AddPlot(
+				ctx,
+				plotData{
+					v.AssetData,
+					v.GetLastCandleResolution(),
+					v.brokerList[brokerIndex],
+					v.UiIndex,
+					v.indicators,
+					v.GetLastPlotScalingX(),
+				},
+				v.appTradingUrl)
 			v.uiUpdater.Invalidate()
 		}
 	}
@@ -369,32 +392,6 @@ func (v *PlotView) Layout(ctx context.Context, gtx layout.Context, th *material.
 	v.searchField.HandleInput(gtx)
 
 	return layout.Dimensions{Size: gtx.Constraints.Max}, refreshData
-}
-
-// Call in same thread as Layout()
-func (v *PlotView) GetTradeRequest() (stockapi.TradeRequest, bool) {
-	buyAmount, ok := v.QuoteField.BuyClicked()
-	if ok {
-		return stockapi.TradeRequest{
-			Asset:       v.AssetData,
-			Quantity:    buyAmount,
-			Sell:        false,
-			Type:        stockapi.OrderTypeMarket,
-			TimeInForce: stockapi.OrderTimeInForceDay,
-		}, true
-	}
-	sellAmount, ok := v.QuoteField.SellClicked()
-	if ok {
-		return stockapi.TradeRequest{
-			Asset:       v.AssetData,
-			Quantity:    sellAmount,
-			Sell:        true,
-			Type:        stockapi.OrderTypeMarket,
-			TimeInForce: stockapi.OrderTimeInForceDay,
-		}, true
-	}
-
-	return stockapi.TradeRequest{}, false
 }
 
 // Call in same thread as Layout()

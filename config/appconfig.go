@@ -21,6 +21,7 @@ type BrokerConfig struct {
 	DataUrl         string `yaml:",omitempty"`
 	TradingUrl      string `yaml:",omitempty"`
 	PaperTradingUrl string `yaml:",omitempty"`
+	AppTradingUrl   string `yaml:",omitempty"`
 	RegistrationUrl string `yaml:",omitempty"`
 	WsUrl           string `yaml:",omitempty"`
 	ApiKey          string `yaml:",omitempty"`
@@ -46,8 +47,8 @@ func NewBrokerConfigMap() map[stockval.BrokerId]BrokerConfig {
 	return map[stockval.BrokerId]BrokerConfig{
 		"finnhub": {
 			DataUrl:            "https://finnhub.io/api/v1",
-			WsUrl:              "wss://ws.finnhub.io",
 			RegistrationUrl:    "https://finnhub.io/",
+			WsUrl:              "wss://ws.finnhub.io",
 			RateLimitPerSecond: 30,
 			DataTimeoutSeconds: 10,
 		},
@@ -55,8 +56,9 @@ func NewBrokerConfigMap() map[stockval.BrokerId]BrokerConfig {
 			DataUrl:            "https://data.alpaca.markets/v2",
 			TradingUrl:         "https://api.alpaca.markets/v2",
 			PaperTradingUrl:    "https://paper-api.alpaca.markets/v2",
-			WsUrl:              "wss://stream.data.alpaca.markets/v2",
+			AppTradingUrl:      "https://app.alpaca.markets/trade/%s",
 			RegistrationUrl:    "https://alpaca.markets/",
+			WsUrl:              "wss://stream.data.alpaca.markets/v2",
 			UseApiSecret:       true,
 			DataTimeoutSeconds: 10,
 		},
@@ -129,6 +131,9 @@ func (a *AppConfig) RestoreDefaults() {
 		}
 		if len(c.WsUrl) == 0 {
 			c.WsUrl = def.WsUrl
+		}
+		if len(c.AppTradingUrl) == 0 {
+			c.AppTradingUrl = def.AppTradingUrl
 		}
 		a.BrokerConfig[key] = c
 	}

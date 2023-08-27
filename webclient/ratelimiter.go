@@ -21,6 +21,7 @@ type RateLimiter struct {
 }
 
 const MinWaitTime = time.Millisecond * 250
+const MinReconnectWaitTime = time.Second * 10
 
 // Create a rate limiter to be initialized by http headers.
 // Call HandleResponseHeaders to initialize.

@@ -79,10 +79,18 @@ type BrokerData struct {
 	stockMap          *skipmap.StringMap[PriceData]
 }
 
+type plotData struct {
+	Entry            stockval.AssetData
+	CandleResolution candles.CandleResolution
+	BrokerName       stockval.BrokerId
+	UiIndex          int32
+	Indicators       []indapi.IndicatorData
+	ScalingX         stockval.PlotScaling
+}
+
 type StockUiUpdater interface {
 	Invalidate()
-	AddPlot(ctx context.Context, entry stockval.AssetData, candleResolution candles.CandleResolution, brokerName stockval.BrokerId,
-		uiIndex int32, indicators []indapi.IndicatorData, scalingX stockval.PlotScaling)
+	AddPlot(ctx context.Context, plotData plotData, appTradingUrl string)
 	RemovePlot(entry stockval.AssetData, uiIndex int32)
 	UpdatePlot(uiIndex int32, v PlotView)
 	ShowSettings()
@@ -174,7 +182,17 @@ func (a *StockApp) reloadConfiguration(ctx context.Context) error {
 			for _, c := range plotConfig.Indicators {
 				indicatorData = append(indicatorData, indicators.Create(c.IndicatorId, c.Properties, c.Color))
 			}
-			a.AddPlot(ctx, plotConfig.AssetData, plotConfig.Resolution, broker, 0, indicatorData, plotConfig.PlotScalingX)
+			a.AddPlot(
+				ctx,
+				plotData{
+					plotConfig.AssetData,
+					plotConfig.Resolution,
+					broker,
+					0,
+					indicatorData,
+					plotConfig.PlotScalingX,
+				},
+				appConfig.BrokerConfig[broker].AppTradingUrl)
 		}
 	}
 	a.vizMap.Range(
@@ -420,10 +438,6 @@ func (a *StockApp) layoutPlots(ctx context.Context, gtx layout.Context) {
 					1/float32(a.numUiPlots.X),
 					func(gtx layout.Context) layout.Dimensions {
 						d, refresh := w.Layout(ctx, gtx, a.matTheme, &priceData)
-						tradeRequest, ok := w.GetTradeRequest()
-						if ok {
-							brokerData.tradeRequestChan <- tradeRequest
-						}
 						startTime, endTime, refreshPlot := w.UpdatePlotRange()
 						if refreshPlot {
 							candleResolution := w.GetLastCandleResolution()
@@ -524,37 +538,36 @@ func (a *StockApp) getBrokerList() stockval.BrokerList {
 	return brokerList
 }
 
-func (a *StockApp) AddPlot(ctx context.Context, entry stockval.AssetData, candleResolution candles.CandleResolution,
-	brokerName stockval.BrokerId, uiIndex int32, indicators []indapi.IndicatorData, scalingX stockval.PlotScaling) {
-	log.Printf("Adding plot %d for asset %s", uiIndex, entry.Figi)
+func (a *StockApp) AddPlot(ctx context.Context, plotData plotData, appTradingUrl string) {
+	log.Printf("Adding plot %d for asset %s", plotData.UiIndex, plotData.Entry.Figi)
 	a.addRemovePlotMutex.Lock()
 	defer a.addRemovePlotMutex.Unlock()
-	brokerData, ok := a.brokerData[brokerName]
+	brokerData, ok := a.brokerData[plotData.BrokerName]
 	if !ok {
 		panic("invalid data broker name")
 	}
 	w := NewPlotView(a.getBrokerList(), a.plotTheme)
-	if uiIndex == 0 {
-		uiIndex = atomic.AddInt32(a.lastUiIndex, 1)
+	if plotData.UiIndex == 0 {
+		plotData.UiIndex = atomic.AddInt32(a.lastUiIndex, 1)
 	}
-	w.Initialize(ctx, entry, candleResolution, uiIndex, brokerName, brokerData.broker, a, indicators, scalingX)
+	w.Initialize(ctx, plotData, brokerData.broker, a, appTradingUrl)
 	a.vizMap.Store(w.UiIndex, w)
 
-	_, loaded := brokerData.stockMap.LoadOrStoreLazy(entry.Figi, func() PriceData {
-		priceData := NewPriceData(entry)
+	_, loaded := brokerData.stockMap.LoadOrStoreLazy(plotData.Entry.Figi, func() PriceData {
+		priceData := NewPriceData(plotData.Entry)
 		priceData.Initialize(ctx, brokerData.broker, a)
 		return priceData
 	})
 	if !loaded {
 		// Request realtime data for new stocks.
 		dataRequest := stockapi.SubscribeDataRequest{
-			Asset: entry,
+			Asset: plotData.Entry,
 			Type:  stockapi.RealtimeTradesSubscribe,
 		}
 		brokerData.dataRequestChan <- dataRequest
 		if brokerData.broker.GetCapabilities().RealtimeBidAsk {
 			bidAskRequest := stockapi.SubscribeDataRequest{
-				Asset: entry,
+				Asset: plotData.Entry,
 				Type:  stockapi.RealtimeBidAskSubscribe,
 			}
 			brokerData.dataRequestChan <- bidAskRequest
@@ -562,8 +575,8 @@ func (a *StockApp) AddPlot(ctx context.Context, entry stockval.AssetData, candle
 
 		// Re-request asset data in order to update tradable flag.
 		w.SearchRequestChan <- stockapi.SearchRequest{
-			RequestId:         strconv.Itoa(int(uiIndex)),
-			Text:              entry.Symbol,
+			RequestId:         strconv.Itoa(int(plotData.UiIndex)),
+			Text:              plotData.Entry.Symbol,
 			UnambiguousLookup: true,
 		}
 		// Test Trade

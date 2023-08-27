@@ -5,6 +5,7 @@ package finnhub
 
 import (
 	"context"
+	"encoding/json"
 	"maystocks/config"
 	"maystocks/indapi"
 	"maystocks/indapi/candles"
@@ -13,14 +14,16 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/ericlagergren/decimal"
+	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 )
 
-const testFigi = "BBG007254H26"
+const testFigi = "BBG000BVPV84"
 const testIsin = "US0231351067"
 const testSymbol = "AMZN"
 
@@ -135,6 +138,63 @@ func TestQueryCandlesError(t *testing.T) {
 	assert.NotNil(t, responseData.Error)
 }
 
+func TestSubscribeData(t *testing.T) {
+	srv := newFinnhubWsMock()
+	defer srv.Close()
+	c := make(chan stockapi.SubscribeDataRequest)
+	defer close(c)
+	response := make(chan stockapi.SubscribeDataResponse)
+	broker := NewBroker(nil)
+	err := broker.ReadConfig(newFinnhubConfig(srv.URL))
+	assert.NoError(t, err)
+	go broker.SubscribeData(context.Background(), c, response)
+	c <- stockapi.SubscribeDataRequest{
+		Asset: stockval.AssetData{Figi: testFigi, Isin: testIsin, Symbol: testSymbol},
+		Type:  stockapi.RealtimeTradesSubscribe,
+	}
+	responseData := <-response
+	assert.Equal(t, testFigi, responseData.Figi)
+	assert.Equal(t, stockapi.RealtimeTradesSubscribe, responseData.Type)
+	assert.Nil(t, responseData.Error)
+}
+
+func TestSubscribeDataError(t *testing.T) {
+	srv := newFinnhubWsMock()
+	defer srv.Close()
+	c := make(chan stockapi.SubscribeDataRequest)
+	defer close(c)
+	response := make(chan stockapi.SubscribeDataResponse)
+	broker := NewBroker(nil)
+	err := broker.ReadConfig(newFinnhubConfig(srv.URL))
+	assert.NoError(t, err)
+	go broker.SubscribeData(context.Background(), c, response)
+	c <- stockapi.SubscribeDataRequest{}
+	responseData := <-response
+	assert.NotNil(t, responseData.Error)
+}
+
+func TestSubscribeDataRealtime(t *testing.T) {
+	srv := newFinnhubWsMock()
+	defer srv.Close()
+	c := make(chan stockapi.SubscribeDataRequest)
+	defer close(c)
+	response := make(chan stockapi.SubscribeDataResponse)
+	broker := NewBroker(nil)
+	err := broker.ReadConfig(newFinnhubConfig(srv.URL))
+	assert.NoError(t, err)
+	go broker.SubscribeData(context.Background(), c, response)
+	c <- stockapi.SubscribeDataRequest{
+		Asset: stockval.AssetData{Figi: testFigi, Isin: testIsin, Symbol: testSymbol},
+		Type:  stockapi.RealtimeTradesSubscribe,
+	}
+	responseData := <-response
+	assert.Nil(t, responseData.Error)
+	assert.NotNil(t, responseData.TickData)
+	tickData := <-responseData.TickData
+	assert.NotNil(t, tickData.Price)
+	assert.NotNil(t, tickData.Volume)
+}
+
 func getQuoteResultMock(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	reply := `{
@@ -171,6 +231,51 @@ func getStockCandleResultMock(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(reply)) // ignore errors, test will fail anyway in case Write fails
 }
 
+func webSocketHandler(w http.ResponseWriter, r *http.Request) {
+	// Upgrade test http connection to a websocket connection.
+	webSocketUpgrader := websocket.Upgrader{}
+	conn, err := webSocketUpgrader.Upgrade(w, r, nil)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	defer conn.Close()
+
+	for {
+		messageType, p, err := conn.ReadMessage()
+		if err != nil {
+			break // connection was closed
+		}
+		if messageType != websocket.TextMessage {
+			w.WriteHeader(http.StatusBadRequest)
+			break
+		}
+		var cmd realtimeCommand
+		err = json.Unmarshal(p, &cmd)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			break
+		}
+		if cmd.Type == "subscribe" {
+			// send a realtime tick as response to a subscription request
+			data := realtimeTickData{
+				Data: []realtimeTickEntry{{S: cmd.Symbol, C: &[]string{"1"}, P: decimal.New(11615, 2), T: time.Now().UnixMilli(), V: decimal.New(54109, 0)}},
+				Type: messageTypeTrade,
+			}
+			d, err := json.Marshal(data)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				break
+			}
+			err = conn.WriteMessage(int(websocket.TextMessage), d)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				break
+			}
+		}
+	}
+}
+
 func newFinnhubMock() *httptest.Server {
 	handler := http.NewServeMux()
 	handler.HandleFunc("/quote", getQuoteResultMock)
@@ -179,11 +284,16 @@ func newFinnhubMock() *httptest.Server {
 	return httptest.NewServer(handler)
 }
 
+func newFinnhubWsMock() *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(webSocketHandler))
+}
+
 func newFinnhubConfig(dataUrl string) config.Config {
 	c := config.NewTestConfig()
 	appConfig, _ := c.Lock()
 	brokerConfig := appConfig.BrokerConfig[GetBrokerId()]
 	brokerConfig.DataUrl = dataUrl
+	brokerConfig.WsUrl = "ws" + strings.TrimPrefix(dataUrl, "http")
 	appConfig.BrokerConfig[GetBrokerId()] = brokerConfig
 	_ = c.Unlock(appConfig, true)
 	return c

@@ -200,7 +200,7 @@ func (rq *openFigiSearchTool) executeOpenFigiSearchQuery(ctx context.Context, se
 			return []FigiData{}, err
 		}
 
-		resp, err := rq.apiClient.Do(req)
+		resp, err = rq.apiClient.Do(req)
 		if err != nil {
 			return []FigiData{}, err
 		}

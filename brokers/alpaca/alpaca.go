@@ -218,6 +218,10 @@ const (
 	messageAuthenticated = "authenticated"
 )
 
+const (
+	messageActionAuth = "auth"
+)
+
 func getCandleResolutionStr(r candles.CandleResolution) string {
 	switch r {
 	case candles.CandleOneMinute:
@@ -611,39 +615,43 @@ func (rq *alpacaBroker) querySymbolCandles(ctx context.Context, entry stockval.A
 	}
 }
 
-func (rq *alpacaBroker) initRealtimeConnection(ctx context.Context) {
+func (rq *alpacaBroker) initRealtimeConnection(ctx context.Context) error {
 	if rq.realtimeConn != nil {
-		log.Fatal("only a single realtime connection is supported")
+		return errors.New("only a single realtime connection is supported")
 	}
 	log.Printf("establishing alpaca realtime connection.")
-	var err error
-	rq.realtimeConn, _, err = websocket.DefaultDialer.DialContext(ctx, rq.config.WsUrl+"/iex", nil) // TODO support other data
+	realtimeConn, _, err := websocket.DefaultDialer.DialContext(ctx, rq.config.WsUrl+"/iex", nil) // TODO support other data
 	if err != nil {
-		// TODO this should not be a fatal error
-		log.Fatalf("could not connect to alpaca websocket: %v", err)
+		return fmt.Errorf("could not connect to alpaca websocket: %v", err)
 	}
 	// wait for "connect" message
 	var initMessage []realtimeMessage
-	err = rq.realtimeConn.ReadJSON(&initMessage)
+	err = realtimeConn.ReadJSON(&initMessage)
 	if err != nil || len(initMessage) != 1 || initMessage[0].Type != messageTypeSuccess || initMessage[0].Msg != messageConnected {
-		// TODO this should not be a fatal error
-		log.Fatalf("could not read alpaca realtime connect message: %v", err)
+		realtimeConn.Close()
+		return fmt.Errorf("could not read alpaca realtime connect message: %v", err)
 	}
 	// authenticate
 	authCmd := realtimeAuthCommand{
-		Action: "auth",
+		Action: messageActionAuth,
 		Key:    rq.config.ApiKey,
 		Secret: rq.config.ApiSecret,
 	}
 	msg, _ := json.Marshal(authCmd)
-	rq.realtimeConn.WriteMessage(websocket.TextMessage, msg)
+	err = realtimeConn.WriteMessage(websocket.TextMessage, msg)
+	if err != nil {
+		realtimeConn.Close()
+		return err
+	}
 	// wait for confirmation
 	var confirmMessage []realtimeMessage
-	err = rq.realtimeConn.ReadJSON(&confirmMessage)
+	err = realtimeConn.ReadJSON(&confirmMessage)
 	if err != nil || len(confirmMessage) != 1 || confirmMessage[0].Type != messageTypeSuccess || confirmMessage[0].Msg != messageAuthenticated {
-		// TODO this should not be a fatal error
-		log.Fatalf("could not authenticate alpaca realtime: %v", err)
+		realtimeConn.Close()
+		return fmt.Errorf("could not authenticate alpaca realtime: %v", err)
 	}
+	rq.realtimeConn = realtimeConn
+	return nil
 }
 
 func (rq *alpacaBroker) handleRealtimeData() {
@@ -712,32 +720,53 @@ func (rq *alpacaBroker) handleRealtimeData() {
 func (rq *alpacaBroker) SubscribeData(ctx context.Context, request <-chan stockapi.SubscribeDataRequest, response chan<- stockapi.SubscribeDataResponse) {
 	defer close(response)
 	for entry := range request {
+		var err error
 		// connect whenever we receive a first subscription message.
 		// this avoids creating a realtime connection to brokers which are not used.
 		if rq.realtimeConn == nil {
-			rq.initRealtimeConnection(ctx)
+			err = rq.initRealtimeConnection(ctx)
+			if err != nil {
+				response <- stockapi.SubscribeDataResponse{
+					Figi:  entry.Asset.Figi,
+					Error: err,
+					Type:  entry.Type,
+				}
+				<-time.After(webclient.MinReconnectWaitTime)
+				continue
+			}
 			go rq.handleRealtimeData()
+		}
+		if len(entry.Asset.Symbol) == 0 {
+			response <- stockapi.SubscribeDataResponse{
+				Figi:  entry.Asset.Figi,
+				Error: fmt.Errorf("invalid symbol: %s", entry.Asset.Symbol),
+				Type:  entry.Type,
+			}
+			continue
+		}
+
+		subscribeCommand := getRealtimeSubscribeCommand(entry.Type, entry.Asset)
+		var msg []byte
+		msg, err = json.Marshal(subscribeCommand)
+		if err == nil {
+			err = rq.realtimeConn.WriteMessage(websocket.TextMessage, msg)
 		}
 
 		var tickData chan stockval.RealtimeTickData
 		var bidAskData chan stockval.RealtimeBidAskData
-		var err error
-		switch entry.Type {
-		case stockapi.RealtimeTradesSubscribe:
-			tickData, err = rq.tickDataMap.Subscribe(entry.Asset)
-		case stockapi.RealtimeTradesUnsubscribe:
-			err = rq.tickDataMap.Unsubscribe(entry.Asset)
-		case stockapi.RealtimeBidAskSubscribe:
-			bidAskData, err = rq.bidAskDataMap.Subscribe(entry.Asset)
-		case stockapi.RealtimeBidAskUnsubscribe:
-			err = rq.bidAskDataMap.Unsubscribe(entry.Asset)
-		default:
-			panic("unsupported realtime data subscription mode")
-		}
 		if err == nil {
-			subscribeCommand := getRealtimeSubscribeCommand(entry.Type, entry.Asset)
-			msg, _ := json.Marshal(subscribeCommand)
-			rq.realtimeConn.WriteMessage(websocket.TextMessage, msg)
+			switch entry.Type {
+			case stockapi.RealtimeTradesSubscribe:
+				tickData, err = rq.tickDataMap.Subscribe(entry.Asset)
+			case stockapi.RealtimeTradesUnsubscribe:
+				err = rq.tickDataMap.Unsubscribe(entry.Asset)
+			case stockapi.RealtimeBidAskSubscribe:
+				bidAskData, err = rq.bidAskDataMap.Subscribe(entry.Asset)
+			case stockapi.RealtimeBidAskUnsubscribe:
+				err = rq.bidAskDataMap.Unsubscribe(entry.Asset)
+			default:
+				err = fmt.Errorf("unsupported realtime data subscription mode: %d", entry.Type)
+			}
 		}
 
 		responseData := stockapi.SubscribeDataResponse{

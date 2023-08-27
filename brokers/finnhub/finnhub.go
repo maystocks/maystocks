@@ -82,7 +82,7 @@ type realtimeTickEntry struct {
 
 type realtimeTickData struct {
 	Data []realtimeTickEntry `json:"data,omitempty"`
-	Type string              `json:"type,omitempty"`
+	Type string              `json:"type"`
 }
 
 type realtimeCommand struct {
@@ -90,7 +90,7 @@ type realtimeCommand struct {
 	Symbol string `json:"symbol"`
 }
 
-const MessageTypeTrade = "trade"
+const messageTypeTrade = "trade"
 
 func getCandleResolutionStr(r candles.CandleResolution) string {
 	switch r {
@@ -409,20 +409,20 @@ func (rq *finnhubBroker) querySymbolCandles(ctx context.Context, entry stockval.
 	}
 }
 
-func (rq *finnhubBroker) initRealtimeConnection(ctx context.Context) {
+func (rq *finnhubBroker) initRealtimeConnection(ctx context.Context) error {
 	if rq.realtimeConn != nil {
-		log.Fatal("only a single realtime connection is supported")
+		return errors.New("only a single realtime connection is supported")
 	}
 	log.Printf("establishing finnhub realtime connection.")
-	var err error
-	rq.realtimeConn, _, err = websocket.DefaultDialer.DialContext(
+	realtimeConn, _, err := websocket.DefaultDialer.DialContext(
 		ctx,
 		fmt.Sprintf("%s?token=%s", rq.config.WsUrl, rq.config.ApiKey),
 		nil)
 	if err != nil {
-		// TODO this should not be a fatal error
-		log.Fatalf("could not connect to finnhub websocket: %v", err)
+		return fmt.Errorf("could not connect to finnhub websocket: %v", err)
 	}
+	rq.realtimeConn = realtimeConn
+	return nil
 }
 
 func (rq *finnhubBroker) handleRealtimeData() {
@@ -438,7 +438,7 @@ func (rq *finnhubBroker) handleRealtimeData() {
 			log.Print("finnhub realtime connection was terminated.")
 			break
 		}
-		if data.Type == MessageTypeTrade {
+		if data.Type == messageTypeTrade {
 			for _, tickEntry := range data.Data {
 				tradeTime := time.UnixMilli(tickEntry.T)
 				// var file, _ = os.OpenFile("/tmp/trades.log", os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
@@ -477,39 +477,59 @@ func (rq *finnhubBroker) handleRealtimeData() {
 func (rq *finnhubBroker) SubscribeData(ctx context.Context, request <-chan stockapi.SubscribeDataRequest, response chan<- stockapi.SubscribeDataResponse) {
 	defer close(response)
 	for entry := range request {
+		var err error
 		// connect whenever we receive a first subscription message.
 		// this avoids establishing a realtime connection to brokers which are not used.
 		if rq.realtimeConn == nil {
-			rq.initRealtimeConnection(ctx)
+			err = rq.initRealtimeConnection(ctx)
+			if err != nil {
+				response <- stockapi.SubscribeDataResponse{
+					Figi:  entry.Asset.Figi,
+					Error: err,
+					Type:  entry.Type,
+				}
+				<-time.After(webclient.MinReconnectWaitTime)
+				continue
+			}
 			go rq.handleRealtimeData()
 		}
 
-		var tickData chan stockval.RealtimeTickData
-		var err error
-		switch entry.Type {
-		case stockapi.RealtimeTradesSubscribe:
-			tickData, err = rq.tickDataMap.Subscribe(entry.Asset)
-		case stockapi.RealtimeTradesUnsubscribe:
-			err = rq.tickDataMap.Unsubscribe(entry.Asset)
-		default:
-			panic("unsupported realtime data subscription mode")
-		}
-		if err == nil {
-			subscribeCommand := realtimeCommand{
-				Type:   getRealtimeDataSubscriptionStr(entry.Type),
-				Symbol: entry.Asset.Symbol,
+		if len(entry.Asset.Symbol) == 0 {
+			response <- stockapi.SubscribeDataResponse{
+				Figi:  entry.Asset.Figi,
+				Error: fmt.Errorf("invalid symbol: %s", entry.Asset.Symbol),
+				Type:  entry.Type,
 			}
-			msg, _ := json.Marshal(subscribeCommand)
-			rq.realtimeConn.WriteMessage(websocket.TextMessage, msg)
+			continue
 		}
 
-		responseData := stockapi.SubscribeDataResponse{
+		subscribeCommand := realtimeCommand{
+			Type:   getRealtimeDataSubscriptionStr(entry.Type),
+			Symbol: entry.Asset.Symbol,
+		}
+		var msg []byte
+		msg, err = json.Marshal(subscribeCommand)
+		if err == nil {
+			err = rq.realtimeConn.WriteMessage(websocket.TextMessage, msg)
+		}
+
+		var tickData chan stockval.RealtimeTickData
+		if err == nil {
+			switch entry.Type {
+			case stockapi.RealtimeTradesSubscribe:
+				tickData, err = rq.tickDataMap.Subscribe(entry.Asset)
+			case stockapi.RealtimeTradesUnsubscribe:
+				err = rq.tickDataMap.Unsubscribe(entry.Asset)
+			default:
+				err = fmt.Errorf("unsupported realtime data subscription mode: %d", entry.Type)
+			}
+		}
+		response <- stockapi.SubscribeDataResponse{
 			Figi:     entry.Asset.Figi,
 			Error:    err,
 			Type:     entry.Type,
 			TickData: tickData,
 		}
-		response <- responseData
 	}
 	if rq.realtimeConn != nil {
 		rq.realtimeConn.Close()
