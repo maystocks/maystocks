@@ -4,20 +4,16 @@
 package finnhub
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
-	"log"
-	"maystocks/config"
 	"maystocks/indapi"
 	"maystocks/indapi/candles"
+	"maystocks/mock"
 	"maystocks/stockapi"
 	"maystocks/stockval"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -32,11 +28,12 @@ const testSymbol = "AMZN"
 
 func TestQueryQuote(t *testing.T) {
 	srv := newFinnhubMock(t)
-	logger, _ := newLoggerMock(t)
+	cache := mock.NewAssetCache(t)
+	logger, _ := mock.NewLogger(t)
 	isin := make(chan stockval.AssetData, 1)
 	response := make(chan stockapi.QueryQuoteResponse, 1)
-	broker := NewBroker(nil, logger)
-	err := broker.ReadConfig(newFinnhubConfig(srv.URL))
+	broker := NewBroker(nil, cache, logger)
+	err := broker.ReadConfig(mock.NewBrokerConfig(GetBrokerId(), srv.URL))
 	assert.NoError(t, err)
 	go broker.QueryQuote(context.Background(), isin, response)
 	isin <- stockval.AssetData{Figi: testFigi, Isin: testIsin, Symbol: testSymbol}
@@ -50,11 +47,12 @@ func TestQueryQuote(t *testing.T) {
 
 func TestQueryCandles(t *testing.T) {
 	srv := newFinnhubMock(t)
-	logger, _ := newLoggerMock(t)
+	cache := mock.NewAssetCache(t)
+	logger, _ := mock.NewLogger(t)
 	c := make(chan stockapi.CandlesRequest, 1)
 	response := make(chan stockapi.QueryCandlesResponse, 1)
-	broker := NewBroker(nil, logger)
-	err := broker.ReadConfig(newFinnhubConfig(srv.URL))
+	broker := NewBroker(nil, cache, logger)
+	err := broker.ReadConfig(mock.NewBrokerConfig(GetBrokerId(), srv.URL))
 	assert.NoError(t, err)
 	go broker.QueryCandles(context.Background(), c, response)
 	c <- stockapi.CandlesRequest{
@@ -122,11 +120,12 @@ func TestQueryCandles(t *testing.T) {
 
 func TestQueryCandlesError(t *testing.T) {
 	srv := newFinnhubMock(t)
-	logger, _ := newLoggerMock(t)
+	cache := mock.NewAssetCache(t)
+	logger, _ := mock.NewLogger(t)
 	c := make(chan stockapi.CandlesRequest, 1)
 	response := make(chan stockapi.QueryCandlesResponse, 1)
-	broker := NewBroker(nil, logger)
-	err := broker.ReadConfig(newFinnhubConfig(srv.URL))
+	broker := NewBroker(nil, cache, logger)
+	err := broker.ReadConfig(mock.NewBrokerConfig(GetBrokerId(), srv.URL))
 	assert.NoError(t, err)
 	go broker.QueryCandles(context.Background(), c, response)
 	c <- stockapi.CandlesRequest{
@@ -143,12 +142,13 @@ func TestQueryCandlesError(t *testing.T) {
 
 func TestSubscribeData(t *testing.T) {
 	srv := newFinnhubWsMock(t)
-	logger, _ := newLoggerMock(t)
+	cache := mock.NewAssetCache(t)
+	logger, _ := mock.NewLogger(t)
 	c := make(chan stockapi.SubscribeDataRequest)
 	defer close(c)
 	response := make(chan stockapi.SubscribeDataResponse)
-	broker := NewBroker(nil, logger)
-	err := broker.ReadConfig(newFinnhubConfig(srv.URL))
+	broker := NewBroker(nil, cache, logger)
+	err := broker.ReadConfig(mock.NewBrokerConfig(GetBrokerId(), srv.URL))
 	assert.NoError(t, err)
 	go broker.SubscribeData(context.Background(), c, response)
 	c <- stockapi.SubscribeDataRequest{
@@ -163,12 +163,13 @@ func TestSubscribeData(t *testing.T) {
 
 func TestSubscribeDataError(t *testing.T) {
 	srv := newFinnhubWsMock(t)
-	logger, _ := newLoggerMock(t)
+	cache := mock.NewAssetCache(t)
+	logger, _ := mock.NewLogger(t)
 	c := make(chan stockapi.SubscribeDataRequest)
 	defer close(c)
 	response := make(chan stockapi.SubscribeDataResponse)
-	broker := NewBroker(nil, logger)
-	err := broker.ReadConfig(newFinnhubConfig(srv.URL))
+	broker := NewBroker(nil, cache, logger)
+	err := broker.ReadConfig(mock.NewBrokerConfig(GetBrokerId(), srv.URL))
 	assert.NoError(t, err)
 	go broker.SubscribeData(context.Background(), c, response)
 	c <- stockapi.SubscribeDataRequest{}
@@ -178,12 +179,13 @@ func TestSubscribeDataError(t *testing.T) {
 
 func TestSubscribeDataRealtime(t *testing.T) {
 	srv := newFinnhubWsMock(t)
-	logger, _ := newLoggerMock(t)
+	cache := mock.NewAssetCache(t)
+	logger, _ := mock.NewLogger(t)
 	c := make(chan stockapi.SubscribeDataRequest)
 	defer close(c)
 	response := make(chan stockapi.SubscribeDataResponse)
-	broker := NewBroker(nil, logger)
-	err := broker.ReadConfig(newFinnhubConfig(srv.URL))
+	broker := NewBroker(nil, cache, logger)
+	err := broker.ReadConfig(mock.NewBrokerConfig(GetBrokerId(), srv.URL))
 	assert.NoError(t, err)
 	go broker.SubscribeData(context.Background(), c, response)
 	c <- stockapi.SubscribeDataRequest{
@@ -196,6 +198,30 @@ func TestSubscribeDataRealtime(t *testing.T) {
 	tickData := <-responseData.TickData
 	assert.NotNil(t, tickData.Price)
 	assert.NotNil(t, tickData.Volume)
+}
+
+func TestFindAsset(t *testing.T) {
+	srv := newFinnhubMock(t)
+	cache := mock.NewAssetCache(t)
+	logger, _ := mock.NewLogger(t)
+	searchTool := mock.NewSearchTool()
+	r := make(chan stockapi.SearchRequest, 1)
+	defer close(r)
+	response := make(chan stockapi.SearchResponse, 1)
+	broker := NewBroker(searchTool, cache, logger)
+	err := broker.ReadConfig(mock.NewBrokerConfig(GetBrokerId(), srv.URL))
+	assert.NoError(t, err)
+	go broker.FindAsset(context.Background(), r, response)
+	r <- stockapi.SearchRequest{
+		RequestId:         testFigi,
+		Text:              testSymbol,
+		MaxNumResults:     100,
+		UnambiguousLookup: false,
+	}
+	responseData := <-response
+	assert.Equal(t, testFigi, responseData.RequestId)
+	assert.Nil(t, responseData.Error)
+	assert.Equal(t, 1, len(responseData.Result))
 }
 
 func getQuoteResultMock(w http.ResponseWriter, r *http.Request) {
@@ -231,6 +257,22 @@ func getStockCandleResultMock(w http.ResponseWriter, r *http.Request) {
 			"v": [33109,21942,24349,77377,155176]
 		}`
 	}
+	_, _ = w.Write([]byte(reply)) // ignore errors, test will fail anyway in case Write fails
+}
+
+func getSymbolsMock(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	reply := `[
+	{
+		  "currency": "USD",
+		  "description": "AMAZON.COM INC.",
+		  "displaySymbol": "` + testSymbol + `",
+		  "figi": "` + testFigi + `",
+		  "mic": "XNGS",
+		  "symbol": "` + testSymbol + `",
+		  "type": "Common Stock"
+		}
+	  ]`
 	_, _ = w.Write([]byte(reply)) // ignore errors, test will fail anyway in case Write fails
 }
 
@@ -283,6 +325,7 @@ func newFinnhubMock(t *testing.T) *httptest.Server {
 	handler := http.NewServeMux()
 	handler.HandleFunc("/quote", getQuoteResultMock)
 	handler.HandleFunc("/stock/candle", getStockCandleResultMock)
+	handler.HandleFunc("/stock/symbol", getSymbolsMock)
 
 	srv := httptest.NewServer(handler)
 	t.Cleanup(func() { srv.Close() })
@@ -293,25 +336,4 @@ func newFinnhubWsMock(t *testing.T) *httptest.Server {
 	srv := httptest.NewServer(http.HandlerFunc(webSocketHandler))
 	t.Cleanup(func() { srv.Close() })
 	return srv
-}
-
-func newLoggerMock(t *testing.T) (*log.Logger, *bufio.Scanner) {
-	r, w, err := os.Pipe()
-	if err != nil {
-		assert.Fail(t, "failed to create logger mock: %v", err)
-	}
-	t.Cleanup(func() { r.Close() })
-	t.Cleanup(func() { w.Close() })
-	return log.New(w, "", log.LstdFlags), bufio.NewScanner(r)
-}
-
-func newFinnhubConfig(dataUrl string) config.Config {
-	c := config.NewTestConfig()
-	appConfig, _ := c.Lock()
-	brokerConfig := appConfig.BrokerConfig[GetBrokerId()]
-	brokerConfig.DataUrl = dataUrl
-	brokerConfig.WsUrl = "ws" + strings.TrimPrefix(dataUrl, "http")
-	appConfig.BrokerConfig[GetBrokerId()] = brokerConfig
-	_ = c.Unlock(appConfig, true)
-	return c
 }

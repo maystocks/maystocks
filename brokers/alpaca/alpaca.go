@@ -36,7 +36,7 @@ type alpacaBroker struct {
 	realtimeConn   *websocket.Conn
 	tickDataMap    *stockval.RealtimeChanMap[stockval.RealtimeTickData]
 	bidAskDataMap  *stockval.RealtimeChanMap[stockval.RealtimeBidAskData]
-	cache          *cache.AssetCache
+	cache          cache.AssetCache
 	figiSearchTool stockapi.SymbolSearchTool
 	config         config.BrokerConfig
 	logger         *log.Logger
@@ -337,13 +337,13 @@ func mapSymbolData(s asset) stockval.AssetData {
 	}
 }
 
-func NewBroker(figiSearchTool stockapi.SymbolSearchTool, logger *log.Logger) stockapi.Broker {
+func NewBroker(figiSearchTool stockapi.SymbolSearchTool, cache cache.AssetCache, logger *log.Logger) stockapi.Broker {
 	return &alpacaBroker{
 		rateLimiter:    webclient.NewRateLimiter(),
 		apiClient:      &http.Client{},
 		tickDataMap:    stockval.NewRealtimeChanMap[stockval.RealtimeTickData](),
 		bidAskDataMap:  stockval.NewRealtimeChanMap[stockval.RealtimeBidAskData](),
-		cache:          cache.NewAssetCache(GetBrokerId()),
+		cache:          cache,
 		figiSearchTool: figiSearchTool,
 		logger:         logger,
 	}

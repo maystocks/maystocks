@@ -4,16 +4,13 @@
 package openfigi
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
-	"log"
-	"maystocks/config"
+	"maystocks/mock"
 	"maystocks/stockapi"
 	"mime"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,11 +22,12 @@ const testSymbol = "AMZN"
 
 func TestFindAssetByMapping(t *testing.T) {
 	srv := newOpenFigiMock(t)
-	logger, _ := newLoggerMock(t)
+	logger, _ := mock.NewLogger(t)
 	r := make(chan stockapi.SearchRequest, 1)
+	defer close(r)
 	response := make(chan stockapi.SearchResponse, 1)
 	searchTool := NewSearchTool(logger)
-	err := searchTool.ReadConfig(newOpenFigiConfig(srv.URL))
+	err := searchTool.ReadConfig(mock.NewBrokerConfig(GetBrokerId(), srv.URL))
 	assert.NoError(t, err)
 	go searchTool.FindAsset(context.Background(), r, response)
 	r <- stockapi.SearchRequest{
@@ -40,17 +38,18 @@ func TestFindAssetByMapping(t *testing.T) {
 	}
 	responseData := <-response
 	assert.Equal(t, testFigi, responseData.RequestId)
-	assert.Equal(t, 1, len(responseData.Result))
 	assert.Nil(t, responseData.Error)
+	assert.Equal(t, 1, len(responseData.Result))
 }
 
 func TestFindAssetByMappingError(t *testing.T) {
 	srv := newOpenFigiMock(t)
-	logger, _ := newLoggerMock(t)
+	logger, _ := mock.NewLogger(t)
 	r := make(chan stockapi.SearchRequest, 1)
+	defer close(r)
 	response := make(chan stockapi.SearchResponse, 1)
 	searchTool := NewSearchTool(logger)
-	err := searchTool.ReadConfig(newOpenFigiConfig(srv.URL))
+	err := searchTool.ReadConfig(mock.NewBrokerConfig(GetBrokerId(), srv.URL))
 	assert.NoError(t, err)
 	go searchTool.FindAsset(context.Background(), r, response)
 	r <- stockapi.SearchRequest{
@@ -61,17 +60,18 @@ func TestFindAssetByMappingError(t *testing.T) {
 	}
 	responseData := <-response
 	assert.Equal(t, testFigi, responseData.RequestId)
-	assert.Equal(t, 0, len(responseData.Result))
 	assert.NotNil(t, responseData.Error)
+	assert.Equal(t, 0, len(responseData.Result))
 }
 
 func TestFindAssetBySearch(t *testing.T) {
 	srv := newOpenFigiMock(t)
-	logger, _ := newLoggerMock(t)
+	logger, _ := mock.NewLogger(t)
 	r := make(chan stockapi.SearchRequest, 1)
+	defer close(r)
 	response := make(chan stockapi.SearchResponse, 1)
 	searchTool := NewSearchTool(logger)
-	err := searchTool.ReadConfig(newOpenFigiConfig(srv.URL))
+	err := searchTool.ReadConfig(mock.NewBrokerConfig(GetBrokerId(), srv.URL))
 	assert.NoError(t, err)
 	go searchTool.FindAsset(context.Background(), r, response)
 	r <- stockapi.SearchRequest{
@@ -82,17 +82,18 @@ func TestFindAssetBySearch(t *testing.T) {
 	}
 	responseData := <-response
 	assert.Equal(t, testFigi, responseData.RequestId)
-	assert.Equal(t, 1, len(responseData.Result))
 	assert.Nil(t, responseData.Error)
+	assert.Equal(t, 1, len(responseData.Result))
 }
 
 func TestFindAssetBySearchError(t *testing.T) {
 	srv := newOpenFigiMock(t)
-	logger, _ := newLoggerMock(t)
+	logger, _ := mock.NewLogger(t)
 	r := make(chan stockapi.SearchRequest, 1)
+	defer close(r)
 	response := make(chan stockapi.SearchResponse, 1)
 	searchTool := NewSearchTool(logger)
-	err := searchTool.ReadConfig(newOpenFigiConfig(srv.URL))
+	err := searchTool.ReadConfig(mock.NewBrokerConfig(GetBrokerId(), srv.URL))
 	assert.NoError(t, err)
 	go searchTool.FindAsset(context.Background(), r, response)
 	r <- stockapi.SearchRequest{
@@ -109,7 +110,7 @@ func TestFindAssetBySearchError(t *testing.T) {
 
 func TestCheckConfig(t *testing.T) {
 	srv := newOpenFigiMock(t)
-	valid := IsValidConfig(newOpenFigiConfig(srv.URL))
+	valid := IsValidConfig(mock.NewBrokerConfig(GetBrokerId(), srv.URL))
 	assert.True(t, valid)
 }
 
@@ -191,24 +192,4 @@ func newOpenFigiMock(t *testing.T) *httptest.Server {
 	srv := httptest.NewServer(handler)
 	t.Cleanup(func() { srv.Close() })
 	return srv
-}
-
-func newLoggerMock(t *testing.T) (*log.Logger, *bufio.Scanner) {
-	r, w, err := os.Pipe()
-	if err != nil {
-		assert.Fail(t, "failed to create logger mock: %v", err)
-	}
-	t.Cleanup(func() { r.Close() })
-	t.Cleanup(func() { w.Close() })
-	return log.New(w, "", log.LstdFlags), bufio.NewScanner(r)
-}
-
-func newOpenFigiConfig(dataUrl string) config.Config {
-	c := config.NewTestConfig()
-	appConfig, _ := c.Lock()
-	brokerConfig := appConfig.BrokerConfig[GetBrokerId()]
-	brokerConfig.DataUrl = dataUrl
-	appConfig.BrokerConfig[GetBrokerId()] = brokerConfig
-	_ = c.Unlock(appConfig, true)
-	return c
 }

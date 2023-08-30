@@ -10,6 +10,7 @@ import (
 	"maystocks/brokers/alpaca"
 	"maystocks/brokers/finnhub"
 	"maystocks/brokers/openfigi"
+	"maystocks/cache"
 	"maystocks/config"
 	"maystocks/stockapi"
 	"maystocks/stockval"
@@ -82,7 +83,7 @@ func (a *InitApp) reloadConfiguration() error {
 		return err
 	}
 	if alpaca.IsValidConfig(a.config) {
-		r := alpaca.NewBroker(figiSearchTool, log.Default())
+		r := alpaca.NewBroker(figiSearchTool, cache.NewLocalAssetCache(alpaca.GetBrokerId()), log.Default())
 		err = r.ReadConfig(a.config)
 		if err != nil {
 			return err
@@ -91,7 +92,7 @@ func (a *InitApp) reloadConfiguration() error {
 		a.defaultBroker = alpaca.GetBrokerId()
 	}
 	if finnhub.IsValidConfig(a.config) {
-		r := finnhub.NewBroker(figiSearchTool, log.Default())
+		r := finnhub.NewBroker(figiSearchTool, cache.NewLocalAssetCache(finnhub.GetBrokerId()), log.Default())
 		err = r.ReadConfig(a.config)
 		if err != nil {
 			return err

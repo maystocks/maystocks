@@ -34,7 +34,7 @@ type finnhubBroker struct {
 	apiClient            *http.Client
 	realtimeConn         *websocket.Conn
 	tickDataMap          *stockval.RealtimeChanMap[stockval.RealtimeTickData]
-	cache                *cache.AssetCache
+	cache                cache.AssetCache
 	figiSearchTool       stockapi.SymbolSearchTool
 	config               config.BrokerConfig
 	logger               *log.Logger
@@ -173,13 +173,13 @@ var tradeConditionMap = map[string]stockval.TradeContext{
 	"41": stockval.TradeConditionTradeThroughExempt(),
 }
 
-func NewBroker(figiSearchTool stockapi.SymbolSearchTool, logger *log.Logger) stockapi.Broker {
+func NewBroker(figiSearchTool stockapi.SymbolSearchTool, cache cache.AssetCache, logger *log.Logger) stockapi.Broker {
 	return &finnhubBroker{
 		rateLimiter:          webclient.NewRateLimiter(),
 		perSecondRateLimiter: webclient.NewRateLimiter(),
 		apiClient:            &http.Client{},
 		tickDataMap:          stockval.NewRealtimeChanMap[stockval.RealtimeTickData](),
-		cache:                cache.NewAssetCache(GetBrokerId()),
+		cache:                cache,
 		figiSearchTool:       figiSearchTool,
 		logger:               logger,
 	}
