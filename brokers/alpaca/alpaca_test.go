@@ -4,8 +4,10 @@
 package alpaca
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
+	"log"
 	"maystocks/config"
 	"maystocks/indapi"
 	"maystocks/indapi/candles"
@@ -13,6 +15,7 @@ import (
 	"maystocks/stockval"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -28,11 +31,11 @@ const testSymbol = "AAPL"
 const testOrderId = "61e69015-8549-4bfd-b9c3-01e75843f47d"
 
 func TestQueryQuote(t *testing.T) {
-	srv := newAlpacaMock()
-	defer srv.Close()
+	srv := newAlpacaMock(t)
+	logger, _ := newLoggerMock(t)
 	isin := make(chan stockval.AssetData, 1)
 	response := make(chan stockapi.QueryQuoteResponse, 1)
-	broker := NewBroker(nil)
+	broker := NewBroker(nil, logger)
 	err := broker.ReadConfig(newAlpacaConfig(srv.URL))
 	assert.NoError(t, err)
 	go broker.QueryQuote(context.Background(), isin, response)
@@ -46,12 +49,12 @@ func TestQueryQuote(t *testing.T) {
 }
 
 func TestQueryCandles(t *testing.T) {
-	srv := newAlpacaMock()
-	defer srv.Close()
+	srv := newAlpacaMock(t)
+	logger, _ := newLoggerMock(t)
 	c := make(chan stockapi.CandlesRequest, 1)
 	defer close(c)
 	response := make(chan stockapi.QueryCandlesResponse, 1)
-	broker := NewBroker(nil)
+	broker := NewBroker(nil, logger)
 	err := broker.ReadConfig(newAlpacaConfig(srv.URL))
 	assert.NoError(t, err)
 	go broker.QueryCandles(context.Background(), c, response)
@@ -95,12 +98,12 @@ func TestQueryCandles(t *testing.T) {
 }
 
 func TestSubscribeData(t *testing.T) {
-	srv := newAlpacaWsMock()
-	defer srv.Close()
+	srv := newAlpacaWsMock(t)
+	logger, _ := newLoggerMock(t)
 	c := make(chan stockapi.SubscribeDataRequest)
 	defer close(c)
 	response := make(chan stockapi.SubscribeDataResponse)
-	broker := NewBroker(nil)
+	broker := NewBroker(nil, logger)
 	err := broker.ReadConfig(newAlpacaConfig(srv.URL))
 	assert.NoError(t, err)
 	go broker.SubscribeData(context.Background(), c, response)
@@ -115,12 +118,12 @@ func TestSubscribeData(t *testing.T) {
 }
 
 func TestSubscribeDataError(t *testing.T) {
-	srv := newAlpacaWsMock()
-	defer srv.Close()
+	srv := newAlpacaWsMock(t)
+	logger, _ := newLoggerMock(t)
 	c := make(chan stockapi.SubscribeDataRequest)
 	defer close(c)
 	response := make(chan stockapi.SubscribeDataResponse)
-	broker := NewBroker(nil)
+	broker := NewBroker(nil, logger)
 	err := broker.ReadConfig(newAlpacaConfig(srv.URL))
 	assert.NoError(t, err)
 	go broker.SubscribeData(context.Background(), c, response)
@@ -130,12 +133,12 @@ func TestSubscribeDataError(t *testing.T) {
 }
 
 func TestSubscribeDataRealtime(t *testing.T) {
-	srv := newAlpacaWsMock()
-	defer srv.Close()
+	srv := newAlpacaWsMock(t)
+	logger, _ := newLoggerMock(t)
 	c := make(chan stockapi.SubscribeDataRequest)
 	defer close(c)
 	response := make(chan stockapi.SubscribeDataResponse)
-	broker := NewBroker(nil)
+	broker := NewBroker(nil, logger)
 	err := broker.ReadConfig(newAlpacaConfig(srv.URL))
 	assert.NoError(t, err)
 	go broker.SubscribeData(context.Background(), c, response)
@@ -152,12 +155,12 @@ func TestSubscribeDataRealtime(t *testing.T) {
 }
 
 func TestTradeAsset(t *testing.T) {
-	srv := newAlpacaMock()
-	defer srv.Close()
+	srv := newAlpacaMock(t)
+	logger, _ := newLoggerMock(t)
 	c := make(chan stockapi.TradeRequest, 1)
 	defer close(c)
 	response := make(chan stockapi.TradeResponse, 1)
-	broker := NewBroker(nil)
+	broker := NewBroker(nil, logger)
 	err := broker.ReadConfig(newAlpacaConfig(srv.URL))
 	assert.NoError(t, err)
 	go broker.TradeAsset(context.Background(), c, response, true)
@@ -377,17 +380,31 @@ func webSocketHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func newAlpacaMock() *httptest.Server {
+func newAlpacaMock(t *testing.T) *httptest.Server {
 	handler := http.NewServeMux()
 	handler.HandleFunc("/stocks/"+testSymbol+"/snapshot", getQuoteResultMock)
 	handler.HandleFunc("/stocks/"+testSymbol+"/bars", getStockCandleResultMock)
 	handler.HandleFunc("/orders", postOrderMock)
 
-	return httptest.NewServer(handler)
+	srv := httptest.NewServer(handler)
+	t.Cleanup(func() { srv.Close() })
+	return srv
 }
 
-func newAlpacaWsMock() *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(webSocketHandler))
+func newAlpacaWsMock(t *testing.T) *httptest.Server {
+	srv := httptest.NewServer(http.HandlerFunc(webSocketHandler))
+	t.Cleanup(func() { srv.Close() })
+	return srv
+}
+
+func newLoggerMock(t *testing.T) (*log.Logger, *bufio.Scanner) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		assert.Fail(t, "failed to create logger mock: %v", err)
+	}
+	t.Cleanup(func() { r.Close() })
+	t.Cleanup(func() { w.Close() })
+	return log.New(w, "", log.LstdFlags), bufio.NewScanner(r)
 }
 
 func newAlpacaConfig(dataUrl string) config.Config {

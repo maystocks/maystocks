@@ -39,6 +39,7 @@ type alpacaBroker struct {
 	cache          *cache.AssetCache
 	figiSearchTool stockapi.SymbolSearchTool
 	config         config.BrokerConfig
+	logger         *log.Logger
 }
 
 type trade struct {
@@ -336,7 +337,7 @@ func mapSymbolData(s asset) stockval.AssetData {
 	}
 }
 
-func NewBroker(figiSearchTool stockapi.SymbolSearchTool) stockapi.Broker {
+func NewBroker(figiSearchTool stockapi.SymbolSearchTool, logger *log.Logger) stockapi.Broker {
 	return &alpacaBroker{
 		rateLimiter:    webclient.NewRateLimiter(),
 		apiClient:      &http.Client{},
@@ -344,6 +345,7 @@ func NewBroker(figiSearchTool stockapi.SymbolSearchTool) stockapi.Broker {
 		bidAskDataMap:  stockval.NewRealtimeChanMap[stockval.RealtimeBidAskData](),
 		cache:          cache.NewAssetCache(GetBrokerId()),
 		figiSearchTool: figiSearchTool,
+		logger:         logger,
 	}
 }
 
@@ -483,7 +485,7 @@ func (rq *alpacaBroker) FindAsset(ctx context.Context, entry <-chan stockapi.Sea
 			}
 		}
 		if responseData.Error != nil {
-			log.Print(responseData.Error)
+			rq.logger.Print(responseData.Error)
 		}
 		response <- responseData
 	}
@@ -507,11 +509,11 @@ func (rq *alpacaBroker) QueryQuote(ctx context.Context, entry <-chan stockval.As
 	for entry := range entry {
 		resp := rq.querySymbolQuote(ctx, entry)
 		if resp.Error != nil {
-			log.Print(resp.Error)
+			rq.logger.Print(resp.Error)
 		}
 		response <- resp
 	}
-	log.Println("alpaca QueryQuote terminating.")
+	rq.logger.Println("alpaca QueryQuote terminating.")
 }
 
 func (rq *alpacaBroker) querySymbolQuote(ctx context.Context, entry stockval.AssetData) stockapi.QueryQuoteResponse {
@@ -540,11 +542,11 @@ func (rq *alpacaBroker) QueryCandles(ctx context.Context, request <-chan stockap
 	for req := range request {
 		resp := rq.querySymbolCandles(ctx, req.Stock, req.Resolution, req.FromTime, req.ToTime)
 		if resp.Error != nil {
-			log.Print(resp.Error)
+			rq.logger.Print(resp.Error)
 		}
 		response <- resp
 	}
-	log.Println("finnhub QueryCandles terminating.")
+	rq.logger.Println("finnhub QueryCandles terminating.")
 }
 
 func (rq *alpacaBroker) querySymbolCandles(ctx context.Context, entry stockval.AssetData, resolution candles.CandleResolution,
@@ -619,7 +621,7 @@ func (rq *alpacaBroker) initRealtimeConnection(ctx context.Context) error {
 	if rq.realtimeConn != nil {
 		return errors.New("only a single realtime connection is supported")
 	}
-	log.Printf("establishing alpaca realtime connection.")
+	rq.logger.Printf("establishing alpaca realtime connection.")
 	realtimeConn, _, err := websocket.DefaultDialer.DialContext(ctx, rq.config.WsUrl+"/iex", nil) // TODO support other data
 	if err != nil {
 		return fmt.Errorf("could not connect to alpaca websocket: %v", err)
@@ -666,12 +668,12 @@ func (rq *alpacaBroker) handleRealtimeData() {
 			rq.tickDataMap.Clear()
 			rq.bidAskDataMap.Clear()
 			// TODO reconnect
-			log.Print("alpaca realtime connection was terminated.")
+			rq.logger.Print("alpaca realtime connection was terminated.")
 			break
 		}
 		for i := range data {
 			if data[i].Timestamp.Before(time.Now().Add(-time.Minute)) {
-				log.Printf("Symbol %s: Old realtime data received.", data[i].Symbol)
+				rq.logger.Printf("Symbol %s: Old realtime data received.", data[i].Symbol)
 			}
 			if data[i].Type == messageTypeTrade {
 				// Default: Normal trade.
@@ -687,7 +689,7 @@ func (rq *alpacaBroker) handleRealtimeData() {
 							}
 						}
 					} else {
-						log.Printf("alpaca sent unknown tape: %v", data[i].Tape)
+						rq.logger.Printf("alpaca sent unknown tape: %v", data[i].Tape)
 					}
 				}
 				tickData := stockval.RealtimeTickData{
@@ -698,7 +700,7 @@ func (rq *alpacaBroker) handleRealtimeData() {
 				}
 				err = rq.tickDataMap.AddNewData(data[i].Symbol, tickData)
 				if err != nil {
-					log.Println(err)
+					rq.logger.Println(err)
 				}
 			} else if data[i].Type == messageTypeQuote {
 				bidAskData := stockval.RealtimeBidAskData{
@@ -710,7 +712,7 @@ func (rq *alpacaBroker) handleRealtimeData() {
 				}
 				err = rq.bidAskDataMap.AddNewData(data[i].Symbol, bidAskData)
 				if err != nil {
-					log.Println(err)
+					rq.logger.Println(err)
 				}
 			}
 		}
@@ -731,7 +733,11 @@ func (rq *alpacaBroker) SubscribeData(ctx context.Context, request <-chan stocka
 					Error: err,
 					Type:  entry.Type,
 				}
-				<-time.After(webclient.MinReconnectWaitTime)
+				// wait before reconnecting, but allow abort by context.
+				select {
+				case <-time.After(webclient.MinReconnectWaitTime):
+				case <-ctx.Done():
+				}
 				continue
 			}
 			go rq.handleRealtimeData()
@@ -801,11 +807,11 @@ func (rq *alpacaBroker) TradeAsset(ctx context.Context, request <-chan stockapi.
 	for req := range request {
 		resp := rq.tradeStockAsset(ctx, req, paperTrading)
 		if resp.Error != nil {
-			log.Print(resp.Error)
+			rq.logger.Print(resp.Error)
 		}
 		response <- resp
 	}
-	log.Println("alpaca TradeAsset terminating.")
+	rq.logger.Println("alpaca TradeAsset terminating.")
 }
 
 func (rq *alpacaBroker) tradeStockAsset(ctx context.Context, req stockapi.TradeRequest, paperTrading bool) stockapi.TradeResponse {

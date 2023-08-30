@@ -76,13 +76,13 @@ func (a *InitApp) reloadConfiguration() error {
 	if !openfigi.IsValidConfig(a.config) {
 		return errors.New("missing openfigi configuration")
 	}
-	figiSearchTool := openfigi.NewSearchTool()
+	figiSearchTool := openfigi.NewSearchTool(log.Default())
 	err = figiSearchTool.ReadConfig(a.config)
 	if err != nil {
 		return err
 	}
 	if alpaca.IsValidConfig(a.config) {
-		r := alpaca.NewBroker(figiSearchTool)
+		r := alpaca.NewBroker(figiSearchTool, log.Default())
 		err = r.ReadConfig(a.config)
 		if err != nil {
 			return err
@@ -91,7 +91,7 @@ func (a *InitApp) reloadConfiguration() error {
 		a.defaultBroker = alpaca.GetBrokerId()
 	}
 	if finnhub.IsValidConfig(a.config) {
-		r := finnhub.NewBroker(figiSearchTool)
+		r := finnhub.NewBroker(figiSearchTool, log.Default())
 		err = r.ReadConfig(a.config)
 		if err != nil {
 			return err

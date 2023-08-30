@@ -27,6 +27,7 @@ type openFigiSearchTool struct {
 	apiClient          *http.Client
 	tickerFigiCache    *skipmap.StringMap[FigiData]
 	config             config.BrokerConfig
+	logger             *log.Logger
 }
 
 type mappingFilters struct {
@@ -72,12 +73,13 @@ type searchResponse struct {
 
 type mappingResponse []searchResponse
 
-func NewSearchTool() stockapi.SymbolSearchTool {
+func NewSearchTool(logger *log.Logger) stockapi.SymbolSearchTool {
 	return &openFigiSearchTool{
 		searchRateLimiter:  webclient.NewRateLimiter(),
 		mappingRateLimiter: webclient.NewRateLimiter(),
 		apiClient:          http.DefaultClient,
 		tickerFigiCache:    skipmap.NewString[FigiData](),
+		logger:             logger,
 	}
 }
 
@@ -124,7 +126,7 @@ func (rq *openFigiSearchTool) FindAsset(ctx context.Context, entry <-chan stocka
 	for entry := range entry {
 		responseData := rq.queryFigi(ctx, entry)
 		if responseData.Error != nil {
-			log.Print(responseData.Error)
+			rq.logger.Print(responseData.Error)
 		}
 		response <- responseData
 	}

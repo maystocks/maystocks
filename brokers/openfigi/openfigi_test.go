@@ -4,13 +4,16 @@
 package openfigi
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
+	"log"
 	"maystocks/config"
 	"maystocks/stockapi"
 	"mime"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,11 +24,11 @@ const testIsin = "US0231351067"
 const testSymbol = "AMZN"
 
 func TestFindAssetByMapping(t *testing.T) {
-	srv := newOpenFigiMock()
-	defer srv.Close()
+	srv := newOpenFigiMock(t)
+	logger, _ := newLoggerMock(t)
 	r := make(chan stockapi.SearchRequest, 1)
 	response := make(chan stockapi.SearchResponse, 1)
-	searchTool := NewSearchTool()
+	searchTool := NewSearchTool(logger)
 	err := searchTool.ReadConfig(newOpenFigiConfig(srv.URL))
 	assert.NoError(t, err)
 	go searchTool.FindAsset(context.Background(), r, response)
@@ -42,11 +45,11 @@ func TestFindAssetByMapping(t *testing.T) {
 }
 
 func TestFindAssetByMappingError(t *testing.T) {
-	srv := newOpenFigiMock()
-	defer srv.Close()
+	srv := newOpenFigiMock(t)
+	logger, _ := newLoggerMock(t)
 	r := make(chan stockapi.SearchRequest, 1)
 	response := make(chan stockapi.SearchResponse, 1)
-	searchTool := NewSearchTool()
+	searchTool := NewSearchTool(logger)
 	err := searchTool.ReadConfig(newOpenFigiConfig(srv.URL))
 	assert.NoError(t, err)
 	go searchTool.FindAsset(context.Background(), r, response)
@@ -63,11 +66,11 @@ func TestFindAssetByMappingError(t *testing.T) {
 }
 
 func TestFindAssetBySearch(t *testing.T) {
-	srv := newOpenFigiMock()
-	defer srv.Close()
+	srv := newOpenFigiMock(t)
+	logger, _ := newLoggerMock(t)
 	r := make(chan stockapi.SearchRequest, 1)
 	response := make(chan stockapi.SearchResponse, 1)
-	searchTool := NewSearchTool()
+	searchTool := NewSearchTool(logger)
 	err := searchTool.ReadConfig(newOpenFigiConfig(srv.URL))
 	assert.NoError(t, err)
 	go searchTool.FindAsset(context.Background(), r, response)
@@ -84,11 +87,11 @@ func TestFindAssetBySearch(t *testing.T) {
 }
 
 func TestFindAssetBySearchError(t *testing.T) {
-	srv := newOpenFigiMock()
-	defer srv.Close()
+	srv := newOpenFigiMock(t)
+	logger, _ := newLoggerMock(t)
 	r := make(chan stockapi.SearchRequest, 1)
 	response := make(chan stockapi.SearchResponse, 1)
-	searchTool := NewSearchTool()
+	searchTool := NewSearchTool(logger)
 	err := searchTool.ReadConfig(newOpenFigiConfig(srv.URL))
 	assert.NoError(t, err)
 	go searchTool.FindAsset(context.Background(), r, response)
@@ -105,8 +108,7 @@ func TestFindAssetBySearchError(t *testing.T) {
 }
 
 func TestCheckConfig(t *testing.T) {
-	srv := newOpenFigiMock()
-	defer srv.Close()
+	srv := newOpenFigiMock(t)
 	valid := IsValidConfig(newOpenFigiConfig(srv.URL))
 	assert.True(t, valid)
 }
@@ -181,12 +183,24 @@ func getSearchResultMock(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(reply)) // ignore errors, test will fail anyway in case Write fails
 }
 
-func newOpenFigiMock() *httptest.Server {
+func newOpenFigiMock(t *testing.T) *httptest.Server {
 	handler := http.NewServeMux()
 	handler.HandleFunc("/mapping", getMappingResultMock)
 	handler.HandleFunc("/search", getSearchResultMock)
 
-	return httptest.NewServer(handler)
+	srv := httptest.NewServer(handler)
+	t.Cleanup(func() { srv.Close() })
+	return srv
+}
+
+func newLoggerMock(t *testing.T) (*log.Logger, *bufio.Scanner) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		assert.Fail(t, "failed to create logger mock: %v", err)
+	}
+	t.Cleanup(func() { r.Close() })
+	t.Cleanup(func() { w.Close() })
+	return log.New(w, "", log.LstdFlags), bufio.NewScanner(r)
 }
 
 func newOpenFigiConfig(dataUrl string) config.Config {

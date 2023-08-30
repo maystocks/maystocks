@@ -37,6 +37,7 @@ type finnhubBroker struct {
 	cache                *cache.AssetCache
 	figiSearchTool       stockapi.SymbolSearchTool
 	config               config.BrokerConfig
+	logger               *log.Logger
 }
 
 type stockSymbol struct {
@@ -172,7 +173,7 @@ var tradeConditionMap = map[string]stockval.TradeContext{
 	"41": stockval.TradeConditionTradeThroughExempt(),
 }
 
-func NewBroker(figiSearchTool stockapi.SymbolSearchTool) stockapi.Broker {
+func NewBroker(figiSearchTool stockapi.SymbolSearchTool, logger *log.Logger) stockapi.Broker {
 	return &finnhubBroker{
 		rateLimiter:          webclient.NewRateLimiter(),
 		perSecondRateLimiter: webclient.NewRateLimiter(),
@@ -180,6 +181,7 @@ func NewBroker(figiSearchTool stockapi.SymbolSearchTool) stockapi.Broker {
 		tickDataMap:          stockval.NewRealtimeChanMap[stockval.RealtimeTickData](),
 		cache:                cache.NewAssetCache(GetBrokerId()),
 		figiSearchTool:       figiSearchTool,
+		logger:               logger,
 	}
 }
 
@@ -298,7 +300,7 @@ func (rq *finnhubBroker) FindAsset(ctx context.Context, entry <-chan stockapi.Se
 		}
 		responseData := rq.queryAsset(ctx, symbols, entry)
 		if responseData.Error != nil {
-			log.Print(responseData.Error)
+			rq.logger.Print(responseData.Error)
 		}
 		response <- responseData
 	}
@@ -322,11 +324,11 @@ func (rq *finnhubBroker) QueryQuote(ctx context.Context, entry <-chan stockval.A
 	for entry := range entry {
 		resp := rq.querySymbolQuote(ctx, entry)
 		if resp.Error != nil {
-			log.Print(resp.Error)
+			rq.logger.Print(resp.Error)
 		}
 		response <- resp
 	}
-	log.Println("finnhub QueryQuote terminating.")
+	rq.logger.Println("finnhub QueryQuote terminating.")
 }
 
 func (rq *finnhubBroker) querySymbolQuote(ctx context.Context, entry stockval.AssetData) stockapi.QueryQuoteResponse {
@@ -361,11 +363,11 @@ func (rq *finnhubBroker) QueryCandles(ctx context.Context, request <-chan stocka
 	for req := range request {
 		resp := rq.querySymbolCandles(ctx, req.Stock, req.Resolution, req.FromTime, req.ToTime)
 		if resp.Error != nil {
-			log.Print(resp.Error)
+			rq.logger.Print(resp.Error)
 		}
 		response <- resp
 	}
-	log.Println("finnhub QueryCandles terminating.")
+	rq.logger.Println("finnhub QueryCandles terminating.")
 }
 
 func (rq *finnhubBroker) querySymbolCandles(ctx context.Context, entry stockval.AssetData, resolution candles.CandleResolution,
@@ -389,7 +391,7 @@ func (rq *finnhubBroker) querySymbolCandles(ctx context.Context, entry stockval.
 	if candles.S != "ok" {
 		return stockapi.QueryCandlesResponse{Figi: entry.Figi, Resolution: resolution, Error: fmt.Errorf("finnhub candles error: %s", candles.S)}
 	}
-	log.Printf("# candles %s: %d", entry.Figi, len(candles.O))
+	rq.logger.Printf("# candles %s: %d", entry.Figi, len(candles.O))
 
 	data := make([]indapi.CandleData, 0, len(candles.T))
 	for i := range candles.T {
@@ -413,7 +415,7 @@ func (rq *finnhubBroker) initRealtimeConnection(ctx context.Context) error {
 	if rq.realtimeConn != nil {
 		return errors.New("only a single realtime connection is supported")
 	}
-	log.Printf("establishing finnhub realtime connection.")
+	rq.logger.Printf("establishing finnhub realtime connection.")
 	realtimeConn, _, err := websocket.DefaultDialer.DialContext(
 		ctx,
 		fmt.Sprintf("%s?token=%s", rq.config.WsUrl, rq.config.ApiKey),
@@ -435,7 +437,7 @@ func (rq *finnhubBroker) handleRealtimeData() {
 		if err != nil {
 			rq.tickDataMap.Clear()
 			// TODO reconnect
-			log.Print("finnhub realtime connection was terminated.")
+			rq.logger.Print("finnhub realtime connection was terminated.")
 			break
 		}
 		if data.Type == messageTypeTrade {
@@ -445,7 +447,7 @@ func (rq *finnhubBroker) handleRealtimeData() {
 				// file.WriteString(fmt.Sprintf("%s;%f;%f;%v;%v\n", tickEntry.S, tickEntry.P, tickEntry.V, tickEntry.C, tradeTime))
 				// file.Close()
 				if tradeTime.Before(time.Now().Add(-time.Minute)) {
-					log.Printf("Symbol %s: Old realtime data received.", tickEntry.S)
+					rq.logger.Printf("Symbol %s: Old realtime data received.", tickEntry.S)
 				}
 				// Default: Normal trade.
 				tradeContext := stockval.NewTradeContext()
@@ -455,7 +457,7 @@ func (rq *finnhubBroker) handleRealtimeData() {
 						if exists {
 							tradeContext = tradeContext.Combine(context)
 						} else {
-							log.Printf("Symbol %s: Unknown trade context %s.", tickEntry.S, c)
+							rq.logger.Printf("Symbol %s: Unknown trade context %s.", tickEntry.S, c)
 						}
 					}
 				}
@@ -467,7 +469,7 @@ func (rq *finnhubBroker) handleRealtimeData() {
 				}
 				err = rq.tickDataMap.AddNewData(tickEntry.S, tickData)
 				if err != nil {
-					log.Println(err)
+					rq.logger.Println(err)
 				}
 			}
 		}
@@ -558,7 +560,7 @@ func (rq *finnhubBroker) TradeAsset(ctx context.Context, request <-chan stockapi
 		}
 		response <- resp
 	}
-	log.Println("finnhub TradeAsset terminating.")
+	rq.logger.Println("finnhub TradeAsset terminating.")
 }
 
 func IsValidConfig(c config.Config) bool {
