@@ -11,6 +11,9 @@ import (
 
 func Mean(out *decimal.Big, val []indapi.CandleData) *decimal.Big {
 	out.SetUint64(0)
+	if len(val) == 0 {
+		return out
+	}
 	for i := range val {
 		out.Add(out, val[i].ClosePrice)
 	}
@@ -20,7 +23,7 @@ func Mean(out *decimal.Big, val []indapi.CandleData) *decimal.Big {
 
 func StdDev(out *decimal.Big, val []indapi.CandleData) *decimal.Big {
 	out.SetUint64(0)
-	if len(val) == 0 {
+	if len(val) <= 1 {
 		return out
 	}
 	m := Mean(new(decimal.Big), val)
@@ -30,6 +33,6 @@ func StdDev(out *decimal.Big, val []indapi.CandleData) *decimal.Big {
 		v.Mul(v, v)
 		out.Add(out, v)
 	}
-	out.Quo(out, new(decimal.Big).SetUint64(uint64(len(val))))
+	out.Quo(out, new(decimal.Big).SetUint64(uint64(len(val)-1)))
 	return out.Context.Sqrt(out, out)
 }

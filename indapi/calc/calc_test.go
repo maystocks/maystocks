@@ -4,6 +4,7 @@
 package calc
 
 import (
+	"log"
 	"maystocks/indapi"
 	"testing"
 
@@ -39,14 +40,36 @@ func TestMeanForStdDev(t *testing.T) {
 
 func TestStdDev(t *testing.T) {
 	d := []indapi.CandleData{
-		{ClosePrice: decimal.New(300, 0)},
-		{ClosePrice: decimal.New(430, 0)},
-		{ClosePrice: decimal.New(170, 0)},
-		{ClosePrice: decimal.New(470, 0)},
-		{ClosePrice: decimal.New(600, 0)},
+		{ClosePrice: decimal.New(46, 0)},
+		{ClosePrice: decimal.New(69, 0)},
+		{ClosePrice: decimal.New(32, 0)},
+		{ClosePrice: decimal.New(60, 0)},
+		{ClosePrice: decimal.New(52, 0)},
+		{ClosePrice: decimal.New(41, 0)},
 	}
 	out := StdDev(new(decimal.Big), d)
-	value, ok := out.Int64()
-	assert.True(t, ok)
-	assert.Equal(t, int64(147), value)
+	log.Printf("%f", out)
+	assert.Equal(t, 0, out.Quantize(2).CmpTotal(decimal.New(1331, 2)))
+}
+
+func TestStdDevPrecise(t *testing.T) {
+	d := []indapi.CandleData{
+		{ClosePrice: decimal.New(247, 2)},
+		{ClosePrice: decimal.New(255, 2)},
+		{ClosePrice: decimal.New(251, 2)},
+		{ClosePrice: decimal.New(239, 2)},
+		{ClosePrice: decimal.New(241, 2)},
+		{ClosePrice: decimal.New(247, 2)},
+		{ClosePrice: decimal.New(244, 2)},
+		{ClosePrice: decimal.New(250, 2)},
+		{ClosePrice: decimal.New(246, 2)},
+		{ClosePrice: decimal.New(255, 2)},
+		{ClosePrice: decimal.New(251, 2)},
+		{ClosePrice: decimal.New(232, 2)},
+		{ClosePrice: decimal.New(250, 2)},
+		{ClosePrice: decimal.New(254, 2)},
+		{ClosePrice: decimal.New(251, 2)},
+	}
+	out := StdDev(new(decimal.Big), d)
+	assert.Equal(t, 0, out.Quantize(3).CmpTotal(decimal.New(64, 3)))
 }
