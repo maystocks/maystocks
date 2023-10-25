@@ -97,7 +97,7 @@ func (v *PlotView) Initialize(ctx context.Context, plotData plotData, symbolSear
 	v.resolutionDropDown = widgets.NewDropDown(resolutionList, int(plotData.CandleResolution))
 	v.Plot = stockplot.NewPlot(v.PlotTheme, plotData.CandleResolution, plotData.ScalingX)
 	fullAppTradingUrl := fmt.Sprintf(appTradingUrl, plotData.Entry.Symbol)
-	v.QuoteField = widgets.NewQuoteField(fullAppTradingUrl)
+	v.QuoteField = widgets.NewQuoteField(string(plotData.BrokerName), fullAppTradingUrl)
 	v.UiIndex = plotData.UiIndex
 	v.uiUpdater = uiUpdater
 	v.indicators = plotData.Indicators

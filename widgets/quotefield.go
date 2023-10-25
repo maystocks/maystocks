@@ -15,21 +15,18 @@ import (
 )
 
 type QuoteField struct {
-	calendar   calendar.BankCalendar
-	buttonSell *LinkButton
-	buttonBuy  *LinkButton
+	calendar    calendar.BankCalendar
+	buttonTrade *LinkButton
 }
 
-func NewQuoteField(tradingAppUrl string) *QuoteField {
+func NewQuoteField(brokerName string, tradingAppUrl string) *QuoteField {
 
 	q := QuoteField{
 		calendar: calendar.NewUSBankCalendar(),
 	}
 	if len(tradingAppUrl) > 0 {
-		q.buttonSell = &LinkButton{}
-		q.buttonSell.SetUrl(tradingAppUrl, "")
-		q.buttonBuy = &LinkButton{}
-		q.buttonBuy.SetUrl(tradingAppUrl, "")
+		q.buttonTrade = &LinkButton{}
+		q.buttonTrade.SetUrl(tradingAppUrl, "Trade on "+brokerName)
 	}
 	return &q
 }
@@ -41,35 +38,60 @@ func (q *QuoteField) Layout(gtx layout.Context, th *material.Theme, pth *PlotThe
 
 	return Frame{InnerMargin: 5, BorderWidth: 1, BorderColor: pth.FrameBgColor, BackgroundColor: pth.FrameBgColor}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{
-			Axis:    layout.Vertical,
-			Spacing: layout.SpaceEnd,
+			Axis:      layout.Vertical,
+			Spacing:   layout.SpaceEnd,
+			Alignment: layout.Middle,
 		}.Layout(
 			gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				if !entry.Tradable || q.buttonSell == nil || q.buttonBuy == nil {
+				if !entry.Tradable || q.buttonTrade == nil {
 					return layout.Dimensions{}
 				}
-				tradeFieldDims = layout.Flex{}.Layout(
+				tradeFieldDims = layout.Flex{
+					Axis:      layout.Vertical,
+					Spacing:   layout.SpaceEnd,
+					Alignment: layout.Middle,
+				}.Layout(
 					gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						var sellText string
-						if stockval.IsGreaterThanZero(bidAsk.BidPrice) {
-							sellText = fmt.Sprintf("Sell\n%f\n%d", stockval.PrepareFormattedPrice(bidAsk.BidPrice), bidAsk.BidSize)
-						} else {
-							sellText = "Sell\n--\n--"
-						}
-						q.buttonSell.UpdateText(sellText)
-						return q.buttonSell.Layout(th, gtx)
+						return layout.Flex{}.Layout(
+							gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								var sellText string
+								if stockval.IsGreaterThanZero(bidAsk.BidPrice) {
+									sellText = fmt.Sprintf("Bid\n%f\n%d", stockval.PrepareFormattedPrice(bidAsk.BidPrice), bidAsk.BidSize)
+								} else {
+									sellText = "Bid\n--\n--"
+								}
+								lblBid := material.Body1(
+									th,
+									sellText,
+								)
+								lblBid.Color = pth.FrameTextColor
+								lblBid.Alignment = text.Middle
+								return layout.Inset{Right: 10, Left: 10}.Layout(gtx, lblBid.Layout)
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								var buyText string
+								if stockval.IsGreaterThanZero(bidAsk.AskPrice) {
+									buyText = fmt.Sprintf("Ask\n%f\n%d", stockval.PrepareFormattedPrice(bidAsk.AskPrice), bidAsk.AskSize)
+								} else {
+									buyText = "Ask\n--\n--"
+								}
+								lblAsk := material.Body1(
+									th,
+									buyText,
+								)
+								lblAsk.Color = pth.FrameTextColor
+								lblAsk.Alignment = text.Middle
+								return layout.Inset{Right: 10, Left: 10}.Layout(gtx, lblAsk.Layout)
+							}),
+						)
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						var buyText string
-						if stockval.IsGreaterThanZero(bidAsk.AskPrice) {
-							buyText = fmt.Sprintf("Buy\n%f\n%d", stockval.PrepareFormattedPrice(bidAsk.AskPrice), bidAsk.AskSize)
-						} else {
-							buyText = "Buy\n--\n--"
-						}
-						q.buttonBuy.UpdateText(buyText)
-						return q.buttonBuy.Layout(th, gtx)
+						return layout.Inset{Right: 5, Left: 5, Bottom: 5}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return q.buttonTrade.Layout(th, gtx)
+						})
 					}),
 				)
 				return tradeFieldDims
