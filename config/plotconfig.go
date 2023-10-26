@@ -9,11 +9,11 @@ import (
 )
 
 type PlotConfig struct {
-	AssetData    stockval.AssetData
-	Resolution   candles.CandleResolution
-	BrokerId     stockval.BrokerId
-	Indicators   []IndicatorConfig
-	PlotScalingX stockval.PlotScaling
+	AssetData     stockval.AssetData
+	Resolution    candles.CandleResolution
+	BrokerId      stockval.BrokerId
+	PlotScalingX  stockval.PlotScaling
+	SubPlotConfig []SubPlotConfig
 }
 
 // Returns some valid default plot data. Make sure the broker is available.
@@ -28,10 +28,16 @@ func NewPlotConfig() PlotConfig {
 			CompanyNameNormalized: stockval.NormalizeAssetName("SPDR S&P 500 ETF TRUST"),
 			Tradable:              false,
 		},
-		Resolution: candles.CandleOneDay,
-		BrokerId:   "finnhub",
-		Indicators: []IndicatorConfig{
-			{IndicatorId: "bollinger", Properties: make(map[string]string)},
-		},
+		Resolution:    candles.CandleOneDay,
+		BrokerId:      "finnhub",
+		SubPlotConfig: NewSubPlotConfig(),
+	}
+}
+
+func (p *PlotConfig) sanitize() {
+	// Generate normalized name, this is not stored.
+	p.AssetData.CompanyNameNormalized = stockval.NormalizeAssetName(p.AssetData.CompanyName)
+	if len(p.SubPlotConfig) == 0 {
+		p.SubPlotConfig = NewSubPlotConfig()
 	}
 }

@@ -18,7 +18,15 @@ import (
 
 func NewTestPlot() *Plot {
 	theme := widgets.NewDarkPlotTheme()
-	return NewPlot(theme, candles.CandleOneMinute, stockval.PlotScaling{})
+	return NewPlot(
+		theme,
+		candles.CandleOneMinute,
+		stockval.PlotScaling{},
+		[]SubPlotData{
+			{Type: stockval.SubPlotTypePrice},
+			{Type: stockval.SubPlotTypeVolume},
+		},
+	)
 }
 
 func InitializeTestPlot(testPlot *Plot) {

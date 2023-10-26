@@ -5,7 +5,6 @@ package config
 
 import (
 	"image"
-	"maystocks/stockval"
 )
 
 type WindowConfig struct {
@@ -32,8 +31,7 @@ func (w *WindowConfig) sanitize() {
 		w.PlotConfig = append(w.PlotConfig, NewPlotConfig())
 	}
 	w.PlotConfig = w.PlotConfig[:w.NumPlots.X*w.NumPlots.Y]
-	// Generate normalized name, this is not stored.
-	for j := range w.PlotConfig {
-		w.PlotConfig[j].AssetData.CompanyNameNormalized = stockval.NormalizeAssetName(w.PlotConfig[j].AssetData.CompanyName)
+	for i := range w.PlotConfig {
+		w.PlotConfig[i].sanitize()
 	}
 }

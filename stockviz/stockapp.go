@@ -12,6 +12,7 @@ import (
 	"maystocks/indapi/candles"
 	"maystocks/indapi/indicators"
 	"maystocks/stockapi"
+	"maystocks/stockplot"
 	"maystocks/stockval"
 	"maystocks/widgets"
 	"reflect"
@@ -84,8 +85,8 @@ type plotData struct {
 	CandleResolution candles.CandleResolution
 	BrokerName       stockval.BrokerId
 	UiIndex          int32
-	Indicators       []indapi.IndicatorData
 	ScalingX         stockval.PlotScaling
+	SubPlots         []stockplot.SubPlotData
 }
 
 type StockUiUpdater interface {
@@ -178,9 +179,13 @@ func (a *StockApp) reloadConfiguration(ctx context.Context) error {
 			if !exists {
 				broker = a.defaultBroker
 			}
-			indicatorData := make([]indapi.IndicatorData, 0, len(plotConfig.Indicators))
-			for _, c := range plotConfig.Indicators {
-				indicatorData = append(indicatorData, indicators.Create(c.IndicatorId, c.Properties, c.Color))
+			subPlots := make([]stockplot.SubPlotData, 0, len(plotConfig.SubPlotConfig))
+			for _, s := range plotConfig.SubPlotConfig {
+				indicatorData := make([]indapi.IndicatorData, 0, len(s.Indicators))
+				for _, c := range s.Indicators {
+					indicatorData = append(indicatorData, indicators.Create(c.IndicatorId, c.Properties, c.Color))
+				}
+				subPlots = append(subPlots, stockplot.SubPlotData{Type: s.Type, Indicators: indicatorData})
 			}
 			a.AddPlot(
 				ctx,
@@ -189,8 +194,8 @@ func (a *StockApp) reloadConfiguration(ctx context.Context) error {
 					plotConfig.Resolution,
 					broker,
 					0,
-					indicatorData,
 					plotConfig.PlotScalingX,
+					subPlots,
 				},
 				appConfig.BrokerConfig[broker].AppTradingUrl)
 		}
@@ -202,31 +207,46 @@ func (a *StockApp) reloadConfiguration(ctx context.Context) error {
 				return true
 			}
 			plotConfig := appConfig.WindowConfig[0].PlotConfig[configIndex]
-			changed := len(plotConfig.Indicators) != len(w.indicators)
+			subPlotData := w.Plot.GetSubPlotData()
+			changed := len(plotConfig.SubPlotConfig) != len(subPlotData)
 			if !changed {
-				for i := range w.indicators {
-					if plotConfig.Indicators[i].IndicatorId != w.indicators[i].GetId() {
+				for i, s := range subPlotData {
+					if plotConfig.SubPlotConfig[i].Type != s.Type {
 						changed = true
 						break
 					}
-					if !reflect.DeepEqual(plotConfig.Indicators[i].Properties, w.indicators[i].GetProperties()) {
+					if len(plotConfig.SubPlotConfig[i].Indicators) != len(s.Indicators) {
 						changed = true
 						break
 					}
-					if plotConfig.Indicators[i].Color != w.indicators[i].GetColor() {
-						changed = true
-						break
+					for j, c := range s.Indicators {
+						if plotConfig.SubPlotConfig[i].Indicators[j].IndicatorId != c.GetId() {
+							changed = true
+							break
+						}
+						if !reflect.DeepEqual(plotConfig.SubPlotConfig[i].Indicators[j].Properties, c.GetProperties()) {
+							changed = true
+							break
+						}
+						if plotConfig.SubPlotConfig[i].Indicators[j].Color != c.GetColor() {
+							changed = true
+							break
+						}
 					}
 				}
 			}
 			if changed {
-				// Change indicators and update plot view
-				indicatorData := make([]indapi.IndicatorData, 0, len(plotConfig.Indicators))
-				for _, c := range plotConfig.Indicators {
-					indicatorData = append(indicatorData, indicators.Create(c.IndicatorId, c.Properties, c.Color))
+				// Update subplots
+				subPlots := make([]stockplot.SubPlotData, 0, len(plotConfig.SubPlotConfig))
+				for _, s := range plotConfig.SubPlotConfig {
+					indicatorData := make([]indapi.IndicatorData, 0, len(s.Indicators))
+					for _, c := range s.Indicators {
+						indicatorData = append(indicatorData, indicators.Create(c.IndicatorId, c.Properties, c.Color))
+					}
+					subPlots = append(subPlots, stockplot.SubPlotData{Type: s.Type, Indicators: indicatorData})
 				}
 				newPlotView := w
-				newPlotView.indicators = indicatorData
+				newPlotView.UpdateSubPlots(subPlots)
 				a.UpdatePlot(w.UiIndex, newPlotView)
 			}
 			return true

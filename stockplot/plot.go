@@ -7,6 +7,7 @@ import (
 	"image"
 	"image/color"
 	"math"
+	"maystocks/indapi"
 	"maystocks/indapi/candles"
 	"maystocks/stockval"
 	"maystocks/widgets"
@@ -61,14 +62,21 @@ type PlotTag struct {
 	p *Plot
 }
 
+type SubPlotData struct {
+	Type       stockval.SubPlotType
+	Indicators []indapi.IndicatorData
+}
+
 const MinGridDp = 2
 
-func NewPlot(t *widgets.PlotTheme, r candles.CandleResolution, sx stockval.PlotScaling) *Plot {
+func NewPlot(t *widgets.PlotTheme, r candles.CandleResolution, sx stockval.PlotScaling, s []SubPlotData) *Plot {
 	p := &Plot{
 		Theme: t,
 		Sub: []*SubPlot{
 			{
 				Theme:            t,
+				Type:             s[0].Type,
+				Indicators:       s[0].Indicators,
 				pxSizeRatioY:     0.75,
 				pxGridRatioY:     1,
 				gridY:            t.DefaultPlotGrid.Y,
@@ -79,6 +87,8 @@ func NewPlot(t *widgets.PlotTheme, r candles.CandleResolution, sx stockval.PlotS
 			},
 			{
 				Theme:            t,
+				Type:             s[1].Type,
+				Indicators:       s[1].Indicators,
 				pxSizeRatioY:     0.25,
 				pxGridRatioY:     0.5,
 				gridY:            t.DefaultPlotGrid.Y,
@@ -256,6 +266,15 @@ func (plot *Plot) InitializeFrame(gtx layout.Context, r candles.CandleResolution
 	plot.handleInput(gtx)
 	plot.registerInputOps(gtx.Ops)
 	return
+}
+
+// Call from same goroutine as Layout
+func (plot *Plot) GetSubPlotData() []SubPlotData {
+	data := make([]SubPlotData, 0, len(plot.Sub))
+	for _, s := range plot.Sub {
+		data = append(data, SubPlotData{Type: s.Type, Indicators: s.Indicators})
+	}
+	return data
 }
 
 func (plot *Plot) registerInputOps(ops *op.Ops) {

@@ -22,7 +22,7 @@ import (
 
 const AppName = "maystocks"
 const configFileName = "globalconfig.yaml"
-const configFileVersion = 2
+const configFileVersion = 3
 
 type GlobalConfig struct {
 	loaded            bool

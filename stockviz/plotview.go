@@ -9,7 +9,6 @@ import (
 	"image"
 	"log"
 	"maystocks/config"
-	"maystocks/indapi"
 	"maystocks/indapi/candles"
 	"maystocks/stockapi"
 	"maystocks/stockplot"
@@ -46,7 +45,6 @@ type PlotView struct {
 	QuoteField           *widgets.QuoteField
 	UiIndex              int32
 	uiUpdater            StockUiUpdater
-	indicators           []indapi.IndicatorData
 	appTradingUrl        string
 	SearchRequestChan    chan stockapi.SearchRequest
 	SearchResponseChan   chan stockapi.SearchResponse
@@ -95,12 +93,11 @@ func (v *PlotView) Initialize(ctx context.Context, plotData plotData, symbolSear
 
 	v.brokerDropdown = widgets.NewDropDown(brokerList, brokerIndex)
 	v.resolutionDropDown = widgets.NewDropDown(resolutionList, int(plotData.CandleResolution))
-	v.Plot = stockplot.NewPlot(v.PlotTheme, plotData.CandleResolution, plotData.ScalingX)
+	v.Plot = stockplot.NewPlot(v.PlotTheme, plotData.CandleResolution, plotData.ScalingX, plotData.SubPlots)
 	fullAppTradingUrl := fmt.Sprintf(appTradingUrl, plotData.Entry.Symbol)
 	v.QuoteField = widgets.NewQuoteField(string(plotData.BrokerName), fullAppTradingUrl)
 	v.UiIndex = plotData.UiIndex
 	v.uiUpdater = uiUpdater
-	v.indicators = plotData.Indicators
 	v.appTradingUrl = appTradingUrl
 
 	atomic.StoreInt32(v.lastBroker, int32(brokerIndex))
@@ -112,6 +109,10 @@ func (v *PlotView) Initialize(ctx context.Context, plotData plotData, symbolSear
 
 	go v.handleSearchResult(ctx)
 	go symbolSearchTool.FindAsset(ctx, v.SearchRequestChan, v.SearchResponseChan)
+}
+
+func (v *PlotView) UpdateSubPlots(subPlots []stockplot.SubPlotData) {
+	v.Plot = stockplot.NewPlot(v.PlotTheme, v.GetLastCandleResolution(), v.GetLastPlotScalingX(), subPlots)
 }
 
 func (v *PlotView) Cleanup() {
@@ -168,8 +169,8 @@ func (v *PlotView) handleSearchResult(ctx context.Context) {
 							v.GetLastCandleResolution(),
 							v.GetLastBrokerName(),
 							v.UiIndex,
-							v.indicators,
 							v.GetLastPlotScalingX(),
+							v.Plot.GetSubPlotData(),
 						},
 						v.appTradingUrl,
 					)
@@ -220,8 +221,8 @@ func (v *PlotView) handleInput(ctx context.Context, gtx layout.Context) {
 					v.GetLastCandleResolution(),
 					v.brokerList[brokerIndex],
 					v.UiIndex,
-					v.indicators,
 					v.GetLastPlotScalingX(),
+					v.Plot.GetSubPlotData(),
 				},
 				v.appTradingUrl)
 			v.uiUpdater.Invalidate()
@@ -300,35 +301,16 @@ func (v *PlotView) Layout(ctx context.Context, gtx layout.Context, th *material.
 							candleResolutionChanged := v.Plot.InitializeFrame(gtx, resolution)
 							d := v.Plot.Layout(gtx, th)
 							// TODO allow displaying lines instead of candles
-							//w.Plot.PlotLine(
-							//	0, // TODO hard coded plot index
-							//	priceData.RealtimeData,
-							//	color.NRGBA{R: 255, G: 255, B: 255, A: 255},
-							//	gtx.Ops,
-							//)
 							candleUpdater, loaded := priceData.LoadOrAddCandleResolution(ctx, resolution)
 							if !loaded || candleResolutionChanged {
 								refreshData = true
 								v.lastPlotTimeRange.lastPlotStartTime = time.Time{}
 								v.lastPlotTimeRange.lastPlotEndTime = time.Time{}
 							}
-							v.Plot.Sub[0].PlotCandles( // TODO hard coded plot index
-								candleUpdater.CandleData,
-								gtx,
-							)
-							for _, ind := range v.indicators {
-								ind.Update(candleUpdater.CandleData.Resolution, &candleUpdater.CandleData.PlotData)
-								ind.Plot(v.Plot.Sub[0], gtx, th)
+							for _, s := range v.Plot.Sub {
+								s.UpdateIndicators(candleUpdater.CandleData)
+								s.Plot(candleUpdater.CandleData, quote, gtx, th)
 							}
-							v.Plot.Sub[0].PlotQuoteLine( // TODO hard coded plot index
-								quote,
-								gtx,
-								th,
-							)
-							v.Plot.Sub[1].PlotVolumeBars( // TODO hard coded plot index
-								candleUpdater.CandleData,
-								gtx,
-							)
 							newScalingX, scalingChanged := v.Plot.GetPlotScalingX()
 							if scalingChanged {
 								v.setLastPlotScalingX(newScalingX)

@@ -65,23 +65,23 @@ func NewIndicatorsView() *IndicatorsView {
 
 func (v *IndicatorsView) GetIndicatorConfig(appConfig *config.AppConfig) {
 	for i := range v.indicatorConfig {
-		appConfig.WindowConfig[0].PlotConfig[i].Indicators = appConfig.WindowConfig[0].PlotConfig[i].Indicators[:0]
+		appConfig.WindowConfig[0].PlotConfig[i].SubPlotConfig[0].Indicators = appConfig.WindowConfig[0].PlotConfig[i].SubPlotConfig[0].Indicators[:0]
 		for j := range v.indicatorConfig[i] {
-			appConfig.WindowConfig[0].PlotConfig[i].Indicators =
+			appConfig.WindowConfig[0].PlotConfig[i].SubPlotConfig[0].Indicators =
 				append(
-					appConfig.WindowConfig[0].PlotConfig[i].Indicators,
+					appConfig.WindowConfig[0].PlotConfig[i].SubPlotConfig[0].Indicators,
 					v.indicatorConfig[i][j].IndicatorConfig,
 				)
 		}
 		// There may be additional or removed properties for indicators, we need to merge the maps.
-		for k := range appConfig.WindowConfig[0].PlotConfig[i].Indicators {
-			configProperties := appConfig.WindowConfig[0].PlotConfig[i].Indicators[k].Properties
+		for k := range appConfig.WindowConfig[0].PlotConfig[i].SubPlotConfig[0].Indicators {
+			configProperties := appConfig.WindowConfig[0].PlotConfig[i].SubPlotConfig[0].Indicators[k].Properties
 			// Use default properties as starting point, assign values only for these default properties.
-			appConfig.WindowConfig[0].PlotConfig[i].Indicators[k].Properties =
-				indicators.GetDefaultProperties(appConfig.WindowConfig[0].PlotConfig[i].Indicators[k].IndicatorId)
+			appConfig.WindowConfig[0].PlotConfig[i].SubPlotConfig[0].Indicators[k].Properties =
+				indicators.GetDefaultProperties(appConfig.WindowConfig[0].PlotConfig[i].SubPlotConfig[0].Indicators[k].IndicatorId)
 			for key, value := range configProperties {
-				if _, ok := appConfig.WindowConfig[0].PlotConfig[i].Indicators[k].Properties[key]; ok {
-					appConfig.WindowConfig[0].PlotConfig[i].Indicators[k].Properties[key] = value
+				if _, ok := appConfig.WindowConfig[0].PlotConfig[i].SubPlotConfig[0].Indicators[k].Properties[key]; ok {
+					appConfig.WindowConfig[0].PlotConfig[i].SubPlotConfig[0].Indicators[k].Properties[key] = value
 				}
 			}
 		}
@@ -91,8 +91,8 @@ func (v *IndicatorsView) GetIndicatorConfig(appConfig *config.AppConfig) {
 func (v *IndicatorsView) SetIndicatorConfig(appConfig *config.AppConfig) {
 	v.indicatorConfig = v.indicatorConfig[:0]
 	for i, p := range appConfig.WindowConfig[0].PlotConfig {
-		v.indicatorConfig = append(v.indicatorConfig, make([]IndicatorView, 0, len(p.Indicators)))
-		for _, ind := range p.Indicators {
+		v.indicatorConfig = append(v.indicatorConfig, make([]IndicatorView, 0, len(p.SubPlotConfig[0].Indicators)))
+		for _, ind := range p.SubPlotConfig[0].Indicators {
 			newView := v.createIndicator(ind)
 			v.indicatorConfig[i] = append(v.indicatorConfig[i], newView)
 		}

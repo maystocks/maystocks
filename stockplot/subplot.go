@@ -8,6 +8,7 @@ import (
 	"image/color"
 	"log"
 	"math"
+	"maystocks/indapi"
 	"maystocks/indapi/candles"
 	"maystocks/stockval"
 	"maystocks/widgets"
@@ -30,18 +31,11 @@ import (
 	"github.com/zhangyunhao116/skipmap"
 )
 
-type printFormat int
-
-const (
-	printFormatDefault printFormat = iota
-	printFormatThousands
-	printFormatMillions
-	printFormatBillions
-)
-
 // All subplots of a plot have the same X values but can have different Y values
 type SubPlot struct {
+	Type              stockval.SubPlotType
 	Theme             *widgets.PlotTheme
+	Indicators        []indapi.IndicatorData
 	pxSizeRatioY      float64
 	pxGridRatioY      float64
 	gridY             unit.Dp
@@ -88,6 +82,15 @@ type SubPlot struct {
 		unsureRedVolumeSegments         []stroke.Segment
 	}
 }
+
+type printFormat int
+
+const (
+	printFormatDefault printFormat = iota
+	printFormatThousands
+	printFormatMillions
+	printFormatBillions
+)
 
 type SubPlotTag struct {
 	a EventArea
@@ -423,7 +426,36 @@ func (sub *SubPlot) strokeCandleSegments(gtx layout.Context, seg []stroke.Segmen
 	)
 }
 
-func (sub *SubPlot) PlotCandles(data *stockval.CandlePlotData, gtx layout.Context) {
+func (sub *SubPlot) UpdateIndicators(data *stockval.CandlePlotData) {
+	for _, ind := range sub.Indicators {
+		ind.Update(data.Resolution, &data.PlotData)
+	}
+}
+
+func (sub *SubPlot) Plot(data *stockval.CandlePlotData, quote stockval.QuoteData, gtx layout.Context, th *material.Theme) {
+	switch sub.Type {
+	case stockval.SubPlotTypePrice:
+		sub.plotCandles(
+			data,
+			gtx,
+		)
+		sub.plotQuoteLine(
+			quote,
+			gtx,
+			th,
+		)
+		for _, ind := range sub.Indicators {
+			ind.Plot(sub, gtx, th)
+		}
+	case stockval.SubPlotTypeVolume:
+		sub.plotVolumeBars(
+			data,
+			gtx,
+		)
+	}
+}
+
+func (sub *SubPlot) plotCandles(data *stockval.CandlePlotData, gtx layout.Context) {
 	var minPrice, maxPrice float64
 
 	sub.resetCandleSegments()
@@ -632,7 +664,7 @@ func (sub *SubPlot) resetVolumeSegments() {
 	sub.frame.unsureRedVolumeSegments = sub.frame.unsureRedVolumeSegments[:0]
 }
 
-func (sub *SubPlot) PlotVolumeBars(data *stockval.CandlePlotData, gtx layout.Context) {
+func (sub *SubPlot) plotVolumeBars(data *stockval.CandlePlotData, gtx layout.Context) {
 	sub.resetVolumeSegments()
 	// Only draw within the plot area.
 	clipRect := image.Rectangle{Min: sub.frame.minPos, Max: sub.frame.maxPos}
@@ -721,7 +753,7 @@ func (sub *SubPlot) plotSingleBar(v float64, t time.Time, r candles.CandleResolu
 	}
 }
 
-func (sub *SubPlot) PlotQuoteLine(quote stockval.QuoteData, gtx layout.Context, th *material.Theme) {
+func (sub *SubPlot) plotQuoteLine(quote stockval.QuoteData, gtx layout.Context, th *material.Theme) {
 	if quote.CurrentPrice == nil || quote.PreviousClosePrice == nil || quote.DeltaPercentage == nil {
 		return
 	}
