@@ -4,8 +4,8 @@ go 1.21
 
 require (
 	github.com/inkeliz/giohyperlink v0.0.0-20220903215451-2ac5d54abdce
-	golang.org/x/exp v0.0.0-20230905200255-921286631fa9
-	golang.org/x/image v0.7.0
+	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
+	golang.org/x/image v0.14.0
 )
 
 require (
@@ -13,12 +13,13 @@ require (
 	gioui.org/shader v1.0.8 // indirect
 	git.wow.st/gmp/jni v0.0.0-20210610011705-34026c7e22d0 // indirect
 	github.com/andybalholm/stroke v0.0.0-20221221101821-bd29b49d73f0 // indirect
-	github.com/go-text/typesetting v0.0.0-20230803102845-24e03d8b5372 // indirect
+	github.com/go-text/typesetting v0.0.0-20231101082850-a36c1d9288f6 // indirect
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/zhangyunhao116/fastrand v0.3.0 // indirect
-	golang.org/x/exp/shiny v0.0.0-20220921164117-439092de6870 // indirect
-	golang.org/x/sys v0.13.0 // indirect
-	golang.org/x/text v0.13.0 // indirect
+	golang.org/x/exp/shiny v0.0.0-20231006140011-7918f672742d // indirect
+	golang.org/x/net v0.17.0 // indirect
+	golang.org/x/sys v0.14.0 // indirect
+	golang.org/x/text v0.14.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 )
 
@@ -29,7 +30,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/ericlagergren/decimal v0.0.0-20221120152707-495c53812d05
 	github.com/google/go-cmp v0.6.0
-	github.com/gorilla/websocket v1.5.0
+	github.com/gorilla/websocket v1.5.1
 	github.com/lotodore/localcache v0.0.0-20230412123518-3323bdbf3de4
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rickar/cal/v2 v2.1.13
