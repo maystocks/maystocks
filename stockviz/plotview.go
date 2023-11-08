@@ -90,6 +90,9 @@ func (v *PlotView) Initialize(ctx context.Context, plotData plotData, symbolSear
 	if int(plotData.CandleResolution) >= len(resolutionList) {
 		panic("unknown candle resolution")
 	}
+	if len(plotData.SubPlots) == 0 {
+		panic("missing subplots")
+	}
 
 	v.brokerDropdown = widgets.NewDropDown(brokerList, brokerIndex)
 	v.resolutionDropDown = widgets.NewDropDown(resolutionList, int(plotData.CandleResolution))

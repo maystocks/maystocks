@@ -67,38 +67,50 @@ type SubPlotData struct {
 	Indicators []indapi.IndicatorData
 }
 
+var defaultSubPlotTemplates = map[stockval.SubPlotType]SubPlotTemplate{
+	stockval.SubPlotTypePrice: {
+		pxSizeRatioY:     0.75,
+		pxGridRatioY:     1,
+		valueGridY:       0.1,
+		zoomValueY:       0.05,
+		maxDecimalPlaces: 2,
+		textPrecision:    2,
+	},
+	stockval.SubPlotTypeVolume: {
+		pxSizeRatioY:     0.25,
+		pxGridRatioY:     0.5,
+		valueGridY:       1,
+		zoomValueY:       1,
+		maxDecimalPlaces: 0,
+		textPrecision:    0,
+		fixedZeroValueY:  true,
+	},
+	stockval.SubPlotTypeIndicator: {
+		pxSizeRatioY:     0.25,
+		pxGridRatioY:     0.5,
+		valueGridY:       1,
+		zoomValueY:       1,
+		maxDecimalPlaces: 0,
+		textPrecision:    0,
+		fixedZeroValueY:  true,
+	},
+}
+
 const MinGridDp = 2
 
 func NewPlot(t *widgets.PlotTheme, r candles.CandleResolution, sx stockval.PlotScaling, s []SubPlotData) *Plot {
 	p := &Plot{
 		Theme: t,
-		Sub: []*SubPlot{
-			{
-				Theme:            t,
-				Type:             s[0].Type,
-				Indicators:       s[0].Indicators,
-				pxSizeRatioY:     0.75,
-				pxGridRatioY:     1,
-				gridY:            t.DefaultPlotGrid.Y,
-				valueGridY:       0.1,
-				zoomValueY:       0.05,
-				maxDecimalPlaces: 2,
-				textPrecision:    2,
-			},
-			{
-				Theme:            t,
-				Type:             s[1].Type,
-				Indicators:       s[1].Indicators,
-				pxSizeRatioY:     0.25,
-				pxGridRatioY:     0.5,
-				gridY:            t.DefaultPlotGrid.Y,
-				valueGridY:       1,
-				zoomValueY:       1,
-				maxDecimalPlaces: 0,
-				textPrecision:    0,
-				fixedZeroValueY:  true,
-			},
-		},
+		Sub:   make([]*SubPlot, len(s)),
+	}
+	for i := range s {
+		p.Sub[i] = &SubPlot{
+			Theme:           t,
+			Type:            s[i].Type,
+			Indicators:      s[i].Indicators,
+			gridY:           t.DefaultPlotGrid.Y,
+			SubPlotTemplate: defaultSubPlotTemplates[s[i].Type],
+		}
 	}
 	if sx.Grid > stockval.NearZero {
 		p.gridX = sx.Grid
@@ -123,11 +135,14 @@ func (plot *Plot) setCandleResolution(r candles.CandleResolution, force bool) bo
 		// TODO Grid should be aligned and start at same interval. i.e. start on monday, or use 10 minutes base, or whatever.
 		plot.zeroValueX = r.ConvertTimeToCandleUnits(time.Now().Add(singleCandleDuration * 2))
 		// Regenerate base position and zoom during next rendering
-		// TODO hardcoded subplot index
-		plot.Sub[0].hasInitialCandleY = false
-		plot.Sub[0].hasInitialRangeY = false
-		plot.Sub[0].nextBaseValueY = 0
-		plot.Sub[0].nextValueRangeY = 0
+		for i := range plot.Sub {
+			if plot.Sub[i].Type == stockval.SubPlotTypePrice {
+				plot.Sub[i].hasInitialCandleY = false
+				plot.Sub[i].hasInitialRangeY = false
+				plot.Sub[i].nextBaseValueY = 0
+				plot.Sub[i].nextValueRangeY = 0
+			}
+		}
 		return true
 	}
 	return false

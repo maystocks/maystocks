@@ -36,21 +36,15 @@ type SubPlot struct {
 	Type              stockval.SubPlotType
 	Theme             *widgets.PlotTheme
 	Indicators        []indapi.IndicatorData
-	pxSizeRatioY      float64
-	pxGridRatioY      float64
 	gridY             unit.Dp
 	zeroValueY        float64 // Y value at zero position of plot
-	valueGridY        float64
-	zoomValueY        float64
 	hasInitialCandleY bool
 	hasInitialQuoteY  bool
 	hasInitialRangeY  bool
-	fixedZeroValueY   bool
 	nextBaseValueY    float64
 	nextValueRangeY   float64
-	maxDecimalPlaces  int
-	textPrecision     int // TODO place in Theme
-	frame             struct {
+	SubPlotTemplate
+	frame struct {
 		basePos                         image.Point
 		totalPxSize                     image.Point
 		minPos                          image.Point // plot area
@@ -81,6 +75,16 @@ type SubPlot struct {
 		unsureGreenVolumeSegments       []stroke.Segment
 		unsureRedVolumeSegments         []stroke.Segment
 	}
+}
+
+type SubPlotTemplate struct {
+	pxSizeRatioY     float64
+	pxGridRatioY     float64
+	valueGridY       float64
+	zoomValueY       float64
+	maxDecimalPlaces int
+	textPrecision    int
+	fixedZeroValueY  bool
 }
 
 type printFormat int
@@ -452,6 +456,10 @@ func (sub *SubPlot) Plot(data *stockval.CandlePlotData, quote stockval.QuoteData
 			data,
 			gtx,
 		)
+	case stockval.SubPlotTypeIndicator:
+		for _, ind := range sub.Indicators {
+			ind.Plot(sub, gtx, th)
+		}
 	}
 }
 

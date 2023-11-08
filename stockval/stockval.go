@@ -48,6 +48,7 @@ type SubPlotType int
 const (
 	SubPlotTypePrice SubPlotType = iota
 	SubPlotTypeVolume
+	SubPlotTypeIndicator
 )
 
 // Limit display name size
