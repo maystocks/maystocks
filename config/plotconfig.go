@@ -29,7 +29,7 @@ func NewPlotConfig() PlotConfig {
 			Tradable:              false,
 		},
 		Resolution:    candles.CandleOneDay,
-		BrokerId:      "finnhub",
+		BrokerId:      "alpaca",
 		SubPlotConfig: NewSubPlotConfig(),
 	}
 }
