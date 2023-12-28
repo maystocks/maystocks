@@ -35,6 +35,7 @@ type IndicatorsView struct {
 	configList      widget.List
 	buttonContinue  widget.Clickable
 	buttonAdd       widget.Clickable
+	buttonClose     widget.Clickable
 	confirmed       bool
 	Margin          unit.Dp
 	TextMargin      unit.Dp
@@ -137,7 +138,7 @@ func (v *IndicatorsView) ConfirmClicked() bool {
 
 func (v *IndicatorsView) Layout(th *material.Theme, gtx layout.Context, plotIndex int) layout.Dimensions {
 	v.handleInput(gtx, plotIndex)
-	return layoutConfirmationFrame(th, v.Margin, gtx, &v.buttonContinue, nil, func(gtx layout.Context) layout.Dimensions {
+	return layoutConfirmationFrame(th, v.Margin, gtx, &v.buttonContinue, nil, &v.buttonClose, func(gtx layout.Context) layout.Dimensions {
 		return material.List(th, &v.configList).Layout(gtx, 1, func(gtx layout.Context, index int) layout.Dimensions {
 			v.configChildren = v.configChildren[:0]
 			v.configChildren = append(v.configChildren,
@@ -154,7 +155,11 @@ func (v *IndicatorsView) Layout(th *material.Theme, gtx layout.Context, plotInde
 				th,
 				gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return material.Button(th, &v.buttonAdd, "Add").Layout(gtx)
+					return layout.Flex{}.Layout(gtx,
+						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+							return layout.Inset{Top: v.ItemMargin, Left: v.ItemMargin}.Layout(gtx, material.Button(th, &v.buttonAdd, "Add").Layout)
+						}),
+					)
 				}),
 				v.configChildren)
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, v.configChildren...)
@@ -165,7 +170,7 @@ func (v *IndicatorsView) Layout(th *material.Theme, gtx layout.Context, plotInde
 
 func (v *IndicatorsView) handleInput(gtx layout.Context, plotIndex int) {
 	invalidate := false
-	if v.buttonContinue.Clicked(gtx) {
+	if v.buttonContinue.Clicked(gtx) || v.buttonClose.Clicked(gtx) {
 		if v.validate(plotIndex) {
 			for i := range v.indicatorConfig[plotIndex] {
 				for _, key := range v.indicatorConfig[plotIndex][i].propertyKeys {

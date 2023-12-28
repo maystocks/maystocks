@@ -35,7 +35,7 @@ type ConfigView struct {
 	configList      widget.List
 	plotCountEnum   widget.Enum
 	buttonContinue  widget.Clickable
-	buttonCancel    widget.Clickable
+	buttonClose     widget.Clickable
 	confirmed       bool
 	Margin          unit.Dp
 	ppHash          string
@@ -43,7 +43,6 @@ type ConfigView struct {
 	configChildren  []layout.FlexChild
 	brokerConfig    []BrokerView
 	numPlots        []image.Point
-	ppButton        LinkButton
 	paButton        LinkButton
 	changePwButton  widget.Clickable
 	encryptionSetup config.EncryptionSetup
@@ -52,7 +51,6 @@ type ConfigView struct {
 }
 
 const (
-	paypalUrl  = "https://www.paypal.com/donate/?hosted_button_id=RJVXEZH6LEWQN"
 	patreonUrl = "https://www.patreon.com/maystocks"
 )
 
@@ -68,7 +66,6 @@ func NewConfigView(defaultBrokerConfig map[stockval.BrokerId]config.BrokerConfig
 		numPlots:        make([]image.Point, 1),
 		encryptionSetup: encryptionSetup,
 	}
-	v.ppButton.SetUrl(paypalUrl, "PayPal")
 	v.paButton.SetUrl(patreonUrl, "Patreon")
 	brokerIds := stockval.BrokerList(maps.Keys(defaultBrokerConfig))
 	sort.Sort(brokerIds)
@@ -132,7 +129,7 @@ func (v *ConfigView) ConfirmClicked() bool {
 }
 
 func (v *ConfigView) Layout(th *material.Theme, gtx layout.Context) layout.Dimensions {
-	if v.buttonContinue.Clicked(gtx) {
+	if v.buttonContinue.Clicked(gtx) || v.buttonClose.Clicked(gtx) {
 		if v.validate() {
 			for i := range v.brokerConfig {
 				v.brokerConfig[i].ApiKey = v.brokerConfig[i].apiKeyTextField.Text()
@@ -167,7 +164,7 @@ func (v *ConfigView) Layout(th *material.Theme, gtx layout.Context) layout.Dimen
 		}
 	}
 
-	return layoutConfirmationFrame(th, v.Margin, gtx, &v.buttonContinue, nil, func(gtx layout.Context) layout.Dimensions {
+	return layoutConfirmationFrame(th, v.Margin, gtx, &v.buttonContinue, nil, &v.buttonClose, func(gtx layout.Context) layout.Dimensions {
 		return material.List(th, &v.configList).Layout(gtx, 1, func(gtx layout.Context, index int) layout.Dimensions {
 			v.configChildren = v.configChildren[:0]
 			v.configChildren = append(v.configChildren,
@@ -241,22 +238,6 @@ func (v *ConfigView) Layout(th *material.Theme, gtx layout.Context) layout.Dimen
 								}
 								if v.paHash == "82863cd5e5cda4aa73a465912ecbe0e64e29b8c322e7d2998fe530b08afc7c51" {
 									return v.paButton.Layout(th, gtx)
-								} else {
-									return layout.Dimensions{}
-								}
-							}))
-					})
-				}),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return layoutLabelWidget(th, v.Margin, gtx, "", func(gtx layout.Context) layout.Dimensions {
-						return layout.Flex{}.Layout(gtx,
-							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								if len(v.ppHash) == 0 {
-									hash := sha256.Sum256([]byte(v.ppButton.Url()))
-									v.ppHash = hex.EncodeToString(hash[:])
-								}
-								if v.ppHash == "78f09dff6b492d6eff4d1ab3a7f25f7830b88d4ddc5e2cc3b61cec3743f03667" {
-									return v.ppButton.Layout(th, gtx)
 								} else {
 									return layout.Dimensions{}
 								}

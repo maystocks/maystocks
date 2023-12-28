@@ -62,15 +62,30 @@ func layoutLabelWidget(th *material.Theme, margin unit.Dp, gtx layout.Context, t
 
 }
 
-func layoutConfirmationFrame(th *material.Theme, margin unit.Dp, gtx layout.Context, buttonContinue *widget.Clickable, buttonCancel *widget.Clickable, w layout.Widget) layout.Dimensions {
+func layoutConfirmationFrame(th *material.Theme, margin unit.Dp, gtx layout.Context, buttonContinue *widget.Clickable, buttonCancel *widget.Clickable, buttonClose *widget.Clickable, w layout.Widget) layout.Dimensions {
 	return layout.Flex{
 		Axis: layout.Vertical,
 	}.Layout(gtx,
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return Frame{InnerMargin: margin / 2, OuterMargin: margin, BorderWidth: 1, BorderColor: th.Palette.ContrastBg, BackgroundColor: th.Palette.Bg}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return w(gtx)
-			},
-			)
+			return Frame{InnerMargin: 0, OuterMargin: margin, BorderWidth: 1, BorderColor: th.Palette.ContrastBg, BackgroundColor: th.Palette.Bg}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Stack{Alignment: layout.NE}.Layout(
+					gtx,
+					layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+						return layout.UniformInset(margin/2).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return w(gtx)
+						})
+					}),
+					layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+						if buttonClose != nil {
+							return layout.Inset{Right: margin + margin/2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								return material.Button(th, buttonClose, "X").Layout(gtx)
+							})
+						} else {
+							return layout.Dimensions{}
+						}
+					}),
+				)
+			})
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if buttonCancel != nil {

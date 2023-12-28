@@ -224,7 +224,6 @@ func (a *InitApp) handleEvents(ctx context.Context) error {
 			return e.Err
 		}
 	}
-	return nil
 }
 
 func (a *InitApp) terminate() {

@@ -96,7 +96,7 @@ func (v *PasswordRequesterView) Layout(th *material.Theme, gtx layout.Context) l
 		}
 	}
 
-	return layoutConfirmationFrame(th, v.Margin, gtx, &v.buttonContinue, nil, func(gtx layout.Context) layout.Dimensions {
+	return layoutConfirmationFrame(th, v.Margin, gtx, &v.buttonContinue, nil, nil, func(gtx layout.Context) layout.Dimensions {
 		return material.List(th, &v.passwordList).Layout(gtx, 1, func(gtx layout.Context, index int) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 				layout.Rigid(heading(th, "maystocks Startup").Layout),

@@ -19,6 +19,7 @@ type PasswordCreatorView struct {
 	requestExisting     bool
 	buttonContinue      widget.Clickable
 	buttonCancel        widget.Clickable
+	buttonClose         widget.Clickable
 	existingPwTextField component.TextField
 	newPwTextField      component.TextField
 	newPw2ndTextField   component.TextField
@@ -94,7 +95,7 @@ func (v *PasswordCreatorView) Layout(th *material.Theme, gtx layout.Context) lay
 	if v.buttonContinue.Clicked(gtx) {
 		v.submitPassword()
 	}
-	if v.buttonCancel.Clicked(gtx) {
+	if v.buttonCancel.Clicked(gtx) || v.buttonClose.Clicked(gtx) {
 		v.cancelled = true
 	}
 	for _, evt := range v.existingPwTextField.Events() {
@@ -122,11 +123,12 @@ func (v *PasswordCreatorView) Layout(th *material.Theme, gtx layout.Context) lay
 		}
 	}
 
-	var buttonCancel *widget.Clickable
+	var buttonCancel, buttonClose *widget.Clickable
 	if v.requestExisting {
 		buttonCancel = &v.buttonCancel
+		buttonClose = &v.buttonClose
 	}
-	return layoutConfirmationFrame(th, v.Margin, gtx, &v.buttonContinue, buttonCancel, func(gtx layout.Context) layout.Dimensions {
+	return layoutConfirmationFrame(th, v.Margin, gtx, &v.buttonContinue, buttonCancel, buttonClose, func(gtx layout.Context) layout.Dimensions {
 		return material.List(th, &v.passwordList).Layout(gtx, 1, func(gtx layout.Context, index int) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 				layout.Rigid(heading(th, "Secure configuration data").Layout),
