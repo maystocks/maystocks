@@ -6,7 +6,6 @@ package sma
 import (
 	"image/color"
 	"maystocks/indapi"
-	"maystocks/indapi/calc"
 	"maystocks/indapi/candles"
 	"maystocks/indapi/properties"
 	"strconv"
@@ -14,13 +13,13 @@ import (
 
 	"gioui.org/layout"
 	"gioui.org/widget/material"
-	"github.com/ericlagergren/decimal"
+	"github.com/cinar/indicator"
 )
 
 type Indicator struct {
 	resolution     candles.CandleResolution
 	timestamps     []time.Time
-	sma            []*decimal.Big
+	sma            []float64
 	dataLastChange time.Time
 	numPeriods     int
 	color          color.NRGBA
@@ -67,16 +66,8 @@ func (d *Indicator) Update(r candles.CandleResolution, data *indapi.PlotData) {
 	if !d.dataLastChange.Equal(data.DataLastChange) { // TODO this should be generic for all indicators
 		d.dataLastChange = data.DataLastChange
 		d.resolution = r
-		d.timestamps = d.timestamps[:0]
-		d.sma = d.sma[:0]
-		for i := range data.Data {
-			d.timestamps = append(d.timestamps, data.Data[i].Timestamp)
-			subSet := data.Data[max(0, i+1-d.numPeriods) : i+1]
-			if len(subSet) > 0 {
-				mean := calc.Mean(new(decimal.Big), subSet)
-				d.sma = append(d.sma, mean)
-			}
-		}
+		d.timestamps = data.Cache.Timestamps
+		d.sma = indicator.Sma(d.numPeriods, data.Cache.ClosePrices)
 	}
 }
 

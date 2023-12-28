@@ -43,10 +43,19 @@ type PlotData struct {
 	Data           []CandleData
 	DataLastChange time.Time
 	DataMutex      *sync.RWMutex
+	Cache          struct {
+		LastUpdate  time.Time
+		Timestamps  []time.Time
+		OpenPrices  []float64
+		HighPrices  []float64
+		LowPrices   []float64
+		ClosePrices []float64
+		Volumes     []float64
+	}
 }
 
 type LinePlotter interface {
-	PlotLine(timestamps []time.Time, data []*decimal.Big, r candles.CandleResolution, c color.NRGBA, gtx layout.Context)
+	PlotLine(timestamps []time.Time, data []float64, r candles.CandleResolution, c color.NRGBA, gtx layout.Context)
 }
 
 type IndicatorData interface {

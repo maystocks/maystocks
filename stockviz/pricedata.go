@@ -117,6 +117,7 @@ func (p *PriceData) LoadOrAddCandleResolution(ctx context.Context, candleResolut
 		c.Initialize(ctx, p.broker, p.uiUpdater)
 		p.candles[candleResolution] = c
 	}
+	c.CandleData.UpdateCache()
 	return c, ok
 }
 

@@ -53,6 +53,33 @@ func NewCandlePlotData(resolution candles.CandleResolution) *CandlePlotData {
 	}
 }
 
+func (d *CandlePlotData) UpdateCache() {
+	d.DataMutex.Lock()
+	defer d.DataMutex.Unlock()
+	if !d.DataLastChange.Equal(d.Cache.LastUpdate) {
+		d.Cache.LastUpdate = d.DataLastChange
+		d.Cache.Timestamps = d.Cache.Timestamps[:0]
+		d.Cache.OpenPrices = d.Cache.OpenPrices[:0]
+		d.Cache.HighPrices = d.Cache.HighPrices[:0]
+		d.Cache.LowPrices = d.Cache.LowPrices[:0]
+		d.Cache.ClosePrices = d.Cache.ClosePrices[:0]
+		d.Cache.Volumes = d.Cache.Volumes[:0]
+		for _, candle := range d.Data {
+			o, _ := candle.OpenPrice.Float64()
+			h, _ := candle.HighPrice.Float64()
+			l, _ := candle.LowPrice.Float64()
+			c, _ := candle.ClosePrice.Float64()
+			v, _ := candle.Volume.Float64()
+			d.Cache.Timestamps = append(d.Cache.Timestamps, candle.Timestamp)
+			d.Cache.OpenPrices = append(d.Cache.OpenPrices, o)
+			d.Cache.HighPrices = append(d.Cache.HighPrices, h)
+			d.Cache.LowPrices = append(d.Cache.LowPrices, l)
+			d.Cache.ClosePrices = append(d.Cache.ClosePrices, c)
+			d.Cache.Volumes = append(d.Cache.Volumes, v)
+		}
+	}
+}
+
 func (d *CandlePlotData) GetLastConsolidatedTimestamp() (t time.Time, r candles.CandleResolution, ok bool) {
 	d.DataMutex.RLock()
 	defer d.DataMutex.RUnlock()

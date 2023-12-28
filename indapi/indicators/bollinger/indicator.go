@@ -7,7 +7,6 @@ import (
 	"image/color"
 	"log"
 	"maystocks/indapi"
-	"maystocks/indapi/calc"
 	"maystocks/indapi/candles"
 	"maystocks/indapi/properties"
 	"strconv"
@@ -15,15 +14,15 @@ import (
 
 	"gioui.org/layout"
 	"gioui.org/widget/material"
-	"github.com/ericlagergren/decimal"
+	"github.com/cinar/indicator"
 )
 
 type Indicator struct {
 	resolution     candles.CandleResolution
 	timestamps     []time.Time
-	top            []*decimal.Big
-	mid            []*decimal.Big
-	bottom         []*decimal.Big
+	top            []float64
+	mid            []float64
+	bottom         []float64
 	dataLastChange time.Time
 	timeUnits      int
 	bandWidth      int
@@ -74,24 +73,9 @@ func (d *Indicator) Update(r candles.CandleResolution, data *indapi.PlotData) {
 	if !d.dataLastChange.Equal(data.DataLastChange) { // TODO this should be generic for all indicators
 		d.dataLastChange = data.DataLastChange
 		d.resolution = r
-		d.timestamps = d.timestamps[:0]
-		d.top = d.top[:0]
-		d.mid = d.mid[:0]
-		d.bottom = d.bottom[:0]
-		for i := range data.Data {
-			d.timestamps = append(d.timestamps, data.Data[i].Timestamp)
-			subSet := data.Data[max(0, i+1-d.timeUnits) : i+1]
-			if len(subSet) > 0 {
-				mean := calc.Mean(new(decimal.Big), subSet)
-				meanTop := new(decimal.Big).Copy(mean)
-				meanBottom := new(decimal.Big).Copy(mean)
-				stdDev := calc.StdDev(new(decimal.Big), subSet)
-				stdDev.Mul(stdDev, decimal.New(int64(d.bandWidth), 0))
-				d.top = append(d.top, meanTop.Sub(meanTop, stdDev))
-				d.mid = append(d.mid, mean)
-				d.bottom = append(d.bottom, meanBottom.Add(meanBottom, stdDev))
-			}
-		}
+
+		d.mid, d.top, d.bottom = indicator.BollingerBands(data.Cache.ClosePrices)
+		d.timestamps = data.Cache.Timestamps
 	}
 }
 

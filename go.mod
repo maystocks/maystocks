@@ -27,6 +27,7 @@ require (
 	gioui.org v0.3.1
 	gioui.org/x v0.3.2
 	github.com/barkimedes/go-deepcopy v0.0.0-20220514131651-17c30cfc62df
+	github.com/cinar/indicator v1.3.0
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/ericlagergren/decimal v0.0.0-20221120152707-495c53812d05
 	github.com/google/go-cmp v0.6.0

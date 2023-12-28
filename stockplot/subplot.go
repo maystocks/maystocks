@@ -27,8 +27,6 @@ import (
 	// may have different thickness, even if the same width is specified.
 	// We use the "x/stroke" extension instead, it works like a charm.
 	"gioui.org/x/stroke"
-	"github.com/ericlagergren/decimal"
-	"github.com/zhangyunhao116/skipmap"
 )
 
 // All subplots of a plot have the same X values but can have different Y values
@@ -311,15 +309,11 @@ func (sub *SubPlot) paintGrid(r candles.CandleResolution, firstGridValueX time.T
 	paint.FillShape(gtx.Ops, sub.Theme.GridColor, area)
 }
 
-func (sub *SubPlot) plotLineSegment(t time.Time, value *decimal.Big, r candles.CandleResolution, pxPos, pyPos *float64,
+func (sub *SubPlot) plotLineSegment(t time.Time, value float64, r candles.CandleResolution, pxPos, pyPos *float64,
 	pxPosI, pyPosI *int, first bool, clipRect image.Rectangle, path *stroke.Path) {
-	if value == nil { // some indicators may skip certain data points
-		return
-	}
 	xPos := sub.frame.projection.getXpos(t, r)
 	xPosI := int(xPos)
-	v, _ := value.Float64()
-	yPos := sub.frame.projection.getYpos(v)
+	yPos := sub.frame.projection.getYpos(value)
 	yPosI := int(yPos)
 	if !first {
 		// Performance: We only draw a line if we hit a different pixel.
@@ -345,38 +339,7 @@ func (sub *SubPlot) plotLineSegment(t time.Time, value *decimal.Big, r candles.C
 	*pyPosI = yPosI
 }
 
-func (sub *SubPlot) PlotOrderedLine(data *skipmap.Int64Map[*decimal.Big], r candles.CandleResolution, c color.NRGBA, gtx layout.Context) {
-	dataSize := data.Len()
-	if dataSize <= 1 {
-		return
-	}
-	var path stroke.Path
-	// Reuse line segment buffer from previous frame. This may grow a lot, but considerably improves performance.
-	path.Segments = sub.frame.lineSegments[:0]
-	clipRect := image.Rectangle{Min: sub.frame.minPos, Max: sub.frame.maxPos}
-
-	var pxPos float64 = -1
-	var pxPosI int = -1
-	var pyPos float64 = -1
-	var pyPosI int = -1
-	i := 0
-	data.Range(
-		func(unixTs int64, value *decimal.Big) bool {
-			sub.plotLineSegment(time.UnixMilli(unixTs), value, r, &pxPos, &pyPos, &pxPosI, &pyPosI, i == 0, clipRect, &path)
-			i++
-			return true
-		},
-	)
-
-	// Only draw within the plot area.
-	defer clip.Rect(clipRect).Push(gtx.Ops).Pop()
-	// Draw all data with a single stroke.
-	sub.frame.lineSegments = path.Segments
-	pathArea := stroke.Stroke{Path: path, Width: 1}.Op(gtx.Ops)
-	paint.FillShape(gtx.Ops, c, pathArea)
-}
-
-func (sub *SubPlot) PlotLine(timestamps []time.Time, data []*decimal.Big, r candles.CandleResolution, c color.NRGBA, gtx layout.Context) {
+func (sub *SubPlot) PlotLine(timestamps []time.Time, data []float64, r candles.CandleResolution, c color.NRGBA, gtx layout.Context) {
 	dataSize := len(data)
 	if dataSize <= 1 {
 		return
