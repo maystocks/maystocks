@@ -165,8 +165,8 @@ func (a *InitApp) handleEvents(ctx context.Context) error {
 	var ops op.Ops
 	th := widgets.NewDarkMaterialTheme()
 
-	for e := range a.initWindow.Events() {
-		switch e := e.(type) {
+	for {
+		switch e := a.initWindow.NextEvent().(type) {
 		case system.FrameEvent:
 			gtx := layout.NewContext(&ops, e)
 			paint.Fill(gtx.Ops, th.Bg)

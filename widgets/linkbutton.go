@@ -43,7 +43,7 @@ func (l *LinkButton) Url() string {
 }
 
 func (l *LinkButton) Layout(th *material.Theme, gtx layout.Context) layout.Dimensions {
-	if l.button.Clicked() {
+	if l.button.Clicked(gtx) {
 		if err := giohyperlink.Open(l.linkTarget); err != nil {
 			log.Printf("error: opening link: %v", err)
 		}

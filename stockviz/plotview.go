@@ -231,10 +231,10 @@ func (v *PlotView) handleInput(ctx context.Context, gtx layout.Context) {
 			v.uiUpdater.Invalidate()
 		}
 	}
-	if v.indicatorsButton.Clicked() {
+	if v.indicatorsButton.Clicked(gtx) {
 		v.uiUpdater.ShowIndicators(v.UiIndex)
 	}
-	if v.settingsMenuItem.Clicked() {
+	if v.settingsMenuItem.Clicked(gtx) {
 		v.uiUpdater.ShowSettings()
 	}
 }

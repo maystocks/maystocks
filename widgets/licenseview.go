@@ -96,24 +96,24 @@ func (v *LicenseView) Layout(th *material.Theme, gtx layout.Context) layout.Dime
 		}
 	}
 
-	if v.buttonPageUp.Clicked() {
+	if v.buttonPageUp.Clicked(gtx) {
 		v.scrollPages(-1)
 	}
-	if v.buttonPageDown.Clicked() {
+	if v.buttonPageDown.Clicked(gtx) {
 		v.scrollPages(1)
 	}
-	if v.buttonClipboard.Clicked() {
+	if v.buttonClipboard.Clicked(gtx) {
 		clipboard.WriteOp{
 			Text: v.license,
 		}.Add(gtx.Ops)
 	}
-	if v.buttonCancel.Clicked() {
+	if v.buttonCancel.Clicked(gtx) {
 		v.cancelled = true
 	}
-	if v.cbLicenseConfirmed.Changed() {
+	if v.cbLicenseConfirmed.Update(gtx) {
 		v.highlightConfirmation = false
 	}
-	if v.buttonContinue.Clicked() {
+	if v.buttonContinue.Clicked(gtx) {
 		if v.cbLicenseConfirmed.Value {
 			v.confirmed = true
 		} else {

@@ -408,36 +408,35 @@ func (a *StockApp) createWindows() {
 func (a *StockApp) handleEvents(ctx context.Context) error {
 	var ops op.Ops
 
-	for i := range a.windows {
-		for e := range a.windows[i].win.Events() {
-			giohyperlink.ListenEvents(e)
-			switch e := e.(type) {
-			case system.FrameEvent:
-				gtx := layout.NewContext(&ops, e)
-				paint.Fill(gtx.Ops, a.matTheme.Bg)
-				switch a.uiState {
-				case StatePlot:
-					a.layoutPlots(ctx, gtx)
-				case StateSettings:
-					a.configView.Layout(a.matTheme, gtx)
-					if a.configView.ConfirmClicked() {
-						a.saveAndReloadConfiguration(ctx)
-						a.uiState = StatePlot
-					}
-				case StateIndicators:
-					a.indicatorsView.Layout(a.matTheme, gtx, a.indicatorsIndex)
-					if a.indicatorsView.ConfirmClicked() {
-						a.saveAndReloadConfiguration(ctx)
-						a.uiState = StatePlot
-					}
+	// TODO support multiple windows
+	for {
+		event := a.windows[0].win.NextEvent()
+		giohyperlink.ListenEvents(event)
+		switch e := event.(type) {
+		case system.FrameEvent:
+			gtx := layout.NewContext(&ops, e)
+			paint.Fill(gtx.Ops, a.matTheme.Bg)
+			switch a.uiState {
+			case StatePlot:
+				a.layoutPlots(ctx, gtx)
+			case StateSettings:
+				a.configView.Layout(a.matTheme, gtx)
+				if a.configView.ConfirmClicked() {
+					a.saveAndReloadConfiguration(ctx)
+					a.uiState = StatePlot
 				}
-				e.Frame(gtx.Ops)
-			case system.DestroyEvent:
-				return e.Err
+			case StateIndicators:
+				a.indicatorsView.Layout(a.matTheme, gtx, a.indicatorsIndex)
+				if a.indicatorsView.ConfirmClicked() {
+					a.saveAndReloadConfiguration(ctx)
+					a.uiState = StatePlot
+				}
 			}
+			e.Frame(gtx.Ops)
+		case system.DestroyEvent:
+			return e.Err
 		}
 	}
-	return nil
 }
 
 func (a *StockApp) layoutPlots(ctx context.Context, gtx layout.Context) {

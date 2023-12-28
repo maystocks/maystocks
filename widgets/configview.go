@@ -132,7 +132,7 @@ func (v *ConfigView) ConfirmClicked() bool {
 }
 
 func (v *ConfigView) Layout(th *material.Theme, gtx layout.Context) layout.Dimensions {
-	if v.buttonContinue.Clicked() {
+	if v.buttonContinue.Clicked(gtx) {
 		if v.validate() {
 			for i := range v.brokerConfig {
 				v.brokerConfig[i].ApiKey = v.brokerConfig[i].apiKeyTextField.Text()
@@ -147,7 +147,7 @@ func (v *ConfigView) Layout(th *material.Theme, gtx layout.Context) layout.Dimen
 			v.confirmed = true
 		}
 	}
-	if v.changePwButton.Clicked() {
+	if v.changePwButton.Clicked(gtx) {
 		v.pwCreatorView = NewPasswordCreatorView(true)
 	}
 	if v.pwCreatorView != nil {

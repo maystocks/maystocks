@@ -298,7 +298,7 @@ func (plot *Plot) registerInputOps(ops *op.Ops) {
 		Max: image.Point{X: plot.frame.totalPxSize.X - plot.frame.axesMarginPxMax.X - plot.frame.textSizePx.X, Y: plot.frame.totalPxSize.Y}}).Push(ops)
 	pointer.InputOp{
 		Tag:   PlotTag{a: EventAreaXaxis, p: plot},
-		Types: pointer.Press | pointer.Release | pointer.Drag,
+		Kinds: pointer.Press | pointer.Release | pointer.Drag,
 	}.Add(ops)
 	pointer.CursorColResize.Add(ops)
 	if plot.requestFocus {
@@ -311,7 +311,7 @@ func (plot *Plot) registerInputOps(ops *op.Ops) {
 		subArea := clip.Rect(image.Rectangle{Min: s.frame.minPos, Max: s.frame.maxPos}).Push(ops)
 		pointer.InputOp{
 			Tag:   SubPlotTag{a: EventAreaPlot, s: s},
-			Types: pointer.Press | pointer.Drag | pointer.Scroll,
+			Kinds: pointer.Press | pointer.Drag | pointer.Scroll,
 			ScrollBounds: image.Rectangle{
 				Min: image.Point{
 					X: 0,
@@ -330,7 +330,7 @@ func (plot *Plot) registerInputOps(ops *op.Ops) {
 			Max: s.frame.basePos.Add(s.frame.totalPxSize)}).Push(ops)
 		pointer.InputOp{
 			Tag:   SubPlotTag{a: EventAreaYaxis, s: s},
-			Types: pointer.Press | pointer.Release | pointer.Drag,
+			Kinds: pointer.Press | pointer.Release | pointer.Drag,
 		}.Add(ops)
 		pointer.CursorRowResize.Add(ops)
 		yAxisArea.Pop()
@@ -342,9 +342,9 @@ func (plot *Plot) handleInput(gtx layout.Context) {
 	for _, gtxEvent := range gtx.Events(PlotTag{a: EventAreaXaxis, p: plot}) {
 		switch e := gtxEvent.(type) {
 		case pointer.Event:
-			if e.Type == pointer.Press {
+			if e.Kind == pointer.Press {
 				plot.pointerPressPos = e.Position // TODO maybe support multiple pointers
-			} else if e.Type == pointer.Drag {
+			} else if e.Kind == pointer.Drag {
 				posDelta := plot.pointerPressPos.Sub(e.Position)
 				dpDelta := gtx.Metric.PxToDp(int(posDelta.X)) / 5
 				if dpDelta != 0 {
@@ -365,9 +365,9 @@ func (plot *Plot) handleInput(gtx layout.Context) {
 			switch e := gtxEvent.(type) {
 			case pointer.Event:
 				plot.requestFocus = true
-				if e.Type == pointer.Press {
+				if e.Kind == pointer.Press {
 					plot.pointerPressPos = e.Position
-				} else if e.Type == pointer.Drag {
+				} else if e.Kind == pointer.Drag {
 					posDelta := plot.pointerPressPos.Sub(e.Position)
 					plot.zeroValueX += plot.valueGridX / float64(plot.frame.pxGridX) * float64(posDelta.X)
 					if !s.fixedZeroValueY {
@@ -377,7 +377,7 @@ func (plot *Plot) handleInput(gtx layout.Context) {
 						}
 					}
 					plot.pointerPressPos = e.Position
-				} else if e.Type == pointer.Scroll {
+				} else if e.Kind == pointer.Scroll {
 					var zoom unit.Dp
 					if e.Scroll.Y < 0 {
 						zoom = -10
@@ -398,9 +398,9 @@ func (plot *Plot) handleInput(gtx layout.Context) {
 			switch e := gtxEvent.(type) {
 			case pointer.Event:
 				plot.requestFocus = true
-				if e.Type == pointer.Press {
+				if e.Kind == pointer.Press {
 					plot.pointerPressPos = e.Position
-				} else if e.Type == pointer.Drag {
+				} else if e.Kind == pointer.Drag {
 					posDelta := plot.pointerPressPos.Sub(e.Position)
 					s.gridY += gtx.Metric.PxToDp(int(posDelta.Y)) / 2
 					if s.gridY < MinGridDp {

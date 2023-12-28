@@ -165,7 +165,7 @@ func (v *IndicatorsView) Layout(th *material.Theme, gtx layout.Context, plotInde
 
 func (v *IndicatorsView) handleInput(gtx layout.Context, plotIndex int) {
 	invalidate := false
-	if v.buttonContinue.Clicked() {
+	if v.buttonContinue.Clicked(gtx) {
 		if v.validate(plotIndex) {
 			for i := range v.indicatorConfig[plotIndex] {
 				for _, key := range v.indicatorConfig[plotIndex][i].propertyKeys {
@@ -183,14 +183,14 @@ func (v *IndicatorsView) handleInput(gtx layout.Context, plotIndex int) {
 			invalidate = true
 		}
 	}
-	if v.buttonAdd.Clicked() {
+	if v.buttonAdd.Clicked(gtx) {
 		defaultData := indicators.Create(indicators.DefaultId, nil, color.NRGBA{})
 		newView := v.createIndicator(config.IndicatorConfig{IndicatorId: defaultData.GetId(), Properties: defaultData.GetProperties()})
 		v.indicatorConfig[plotIndex] = append(v.indicatorConfig[plotIndex], newView)
 		invalidate = true
 	}
 	for i := range v.indicatorConfig[plotIndex] {
-		if v.indicatorConfig[plotIndex][i].buttonRemove.Clicked() {
+		if v.indicatorConfig[plotIndex][i].buttonRemove.Clicked(gtx) {
 			// Remove indicator.
 			v.indicatorConfig[plotIndex] = append(v.indicatorConfig[plotIndex][:i], v.indicatorConfig[plotIndex][i+1:]...)
 			invalidate = true

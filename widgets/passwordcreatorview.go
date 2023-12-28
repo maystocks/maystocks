@@ -91,10 +91,10 @@ func (v *PasswordCreatorView) Layout(th *material.Theme, gtx layout.Context) lay
 		}
 		v.focusUpdated = true
 	}
-	if v.buttonContinue.Clicked() {
+	if v.buttonContinue.Clicked(gtx) {
 		v.submitPassword()
 	}
-	if v.buttonCancel.Clicked() {
+	if v.buttonCancel.Clicked(gtx) {
 		v.cancelled = true
 	}
 	for _, evt := range v.existingPwTextField.Events() {

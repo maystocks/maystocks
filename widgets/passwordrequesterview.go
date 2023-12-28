@@ -68,18 +68,18 @@ func (v *PasswordRequesterView) Layout(th *material.Theme, gtx layout.Context) l
 		v.passwordTextField.Focus()
 		v.focusUpdated = true
 	}
-	if v.buttonContinue.Clicked() {
+	if v.buttonContinue.Clicked(gtx) {
 		v.submitPassword()
 	}
-	if v.buttonReset.Clicked() {
+	if v.buttonReset.Clicked(gtx) {
 		v.resetRequested = true
 		v.resetTextField.Focus()
 	}
-	if v.buttonCancelReset.Clicked() {
+	if v.buttonCancelReset.Clicked(gtx) {
 		v.resetRequested = false
 		v.passwordTextField.Focus()
 	}
-	if v.buttonConfirmReset.Clicked() {
+	if v.buttonConfirmReset.Clicked(gtx) {
 		if strings.EqualFold(v.resetTextField.Text(), "reset") {
 			v.confirmedPassword = ""
 			v.confirmed = true
