@@ -54,6 +54,14 @@ type PlotData struct {
 	}
 }
 
+type SubPlotType int
+
+const (
+	SubPlotTypePrice SubPlotType = iota
+	SubPlotTypeVolume
+	SubPlotTypeIndicator
+)
+
 type LinePlotter interface {
 	PlotLine(timestamps []time.Time, data []float64, r candles.CandleResolution, c color.NRGBA, gtx layout.Context)
 }
@@ -66,4 +74,5 @@ type IndicatorData interface {
 	SetProperties(map[string]string)
 	GetColor() color.NRGBA
 	SetColor(color.NRGBA)
+	GetSubPlotType() SubPlotType
 }

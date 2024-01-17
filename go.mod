@@ -24,7 +24,7 @@ require (
 )
 
 require (
-	gioui.org v0.4.1
+	gioui.org v0.4.2
 	gioui.org/x v0.4.0
 	github.com/barkimedes/go-deepcopy v0.0.0-20220514131651-17c30cfc62df
 	github.com/cinar/indicator v1.3.0

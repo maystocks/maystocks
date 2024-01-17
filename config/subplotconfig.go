@@ -3,10 +3,12 @@
 
 package config
 
-import "maystocks/stockval"
+import (
+	"maystocks/indapi"
+)
 
 type SubPlotConfig struct {
-	Type       stockval.SubPlotType
+	Type       indapi.SubPlotType
 	Indicators []IndicatorConfig
 }
 
@@ -20,7 +22,7 @@ func NewSubPlotConfig() []SubPlotConfig {
 // Returns some valid default plot data.
 func NewSubPlotPriceConfig() SubPlotConfig {
 	return SubPlotConfig{
-		Type: stockval.SubPlotTypePrice,
+		Type: indapi.SubPlotTypePrice,
 		Indicators: []IndicatorConfig{
 			{IndicatorId: "bollinger", Properties: make(map[string]string)},
 		},
@@ -29,6 +31,6 @@ func NewSubPlotPriceConfig() SubPlotConfig {
 
 func NewSubPlotVolumeConfig() SubPlotConfig {
 	return SubPlotConfig{
-		Type: stockval.SubPlotTypeVolume,
+		Type: indapi.SubPlotTypeVolume,
 	}
 }

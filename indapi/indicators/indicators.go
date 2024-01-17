@@ -41,6 +41,14 @@ func GetDefaultProperties(id indapi.IndicatorId) map[string]string {
 	return d().GetProperties()
 }
 
+func GetSubPlotType(id indapi.IndicatorId) indapi.SubPlotType {
+	d, ok := IndicatorRegistry[id]
+	if !ok {
+		panic("invalid indicator name")
+	}
+	return d().GetSubPlotType()
+}
+
 func GetList() indapi.IndicatorList {
 	l := indapi.IndicatorList(maps.Keys(IndicatorRegistry))
 	sort.Sort(l)

@@ -43,14 +43,6 @@ type PlotScaling struct {
 	ValueGrid float64
 }
 
-type SubPlotType int
-
-const (
-	SubPlotTypePrice SubPlotType = iota
-	SubPlotTypeVolume
-	SubPlotTypeIndicator
-)
-
 // Limit display name size
 var displayNameRegex = regexp.MustCompile(`^.{0,48}`)
 

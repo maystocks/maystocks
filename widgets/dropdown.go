@@ -54,9 +54,9 @@ func (d *DropDown) Layout(th *material.Theme, gtx layout.Context) layout.Dimensi
 	// Handle menu selection.
 	d.menu.Options = d.menu.Options[:0]
 	for i, m := range d.items {
-		if m.ItemButton.Clicked(gtx) {
+		if m.ItemButton.Pressed() && d.toggled {
 			d.clickedIndex = i
-			d.toggled = !d.toggled
+			d.toggled = false
 		}
 		d.menu.Options = append(d.menu.Options, component.MenuItem(th, m.ItemButton, m.Text).Layout)
 		op.InvalidateOp{}.Add(gtx.Ops)

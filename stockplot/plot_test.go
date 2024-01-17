@@ -6,6 +6,7 @@ package stockplot
 import (
 	"image"
 	"math"
+	"maystocks/indapi"
 	"maystocks/indapi/candles"
 	"maystocks/stockval"
 	"maystocks/widgets"
@@ -23,8 +24,8 @@ func NewTestPlot() *Plot {
 		candles.CandleOneMinute,
 		stockval.PlotScaling{},
 		[]SubPlotData{
-			{Type: stockval.SubPlotTypePrice},
-			{Type: stockval.SubPlotTypeVolume},
+			{Type: indapi.SubPlotTypePrice},
+			{Type: indapi.SubPlotTypeVolume},
 		},
 	)
 }

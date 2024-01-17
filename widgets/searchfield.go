@@ -32,6 +32,7 @@ type SearchField struct {
 	minItemSizeX             int
 	selectedIndex            int
 	lastHoveredIndex         int
+	lastClickedIndex         int
 	textField                component.TextField
 	list                     widget.List
 	ignoreChangeText         string
@@ -47,6 +48,7 @@ func NewSearchField(text string) *SearchField {
 	f := &SearchField{
 		selectedIndex:    -1,
 		lastHoveredIndex: -1,
+		lastClickedIndex: -1,
 		textField: component.TextField{
 			Editor: widget.Editor{Submit: true, SingleLine: true, MaxLen: 128},
 		},
@@ -111,6 +113,7 @@ func (f *SearchField) handleEvents(gtx layout.Context) {
 				f.enteredSearchTextMutex.Unlock()
 			}
 		case widget.SubmitEvent:
+			f.lastClickedIndex = -1
 			f.submitText(evt.Text)
 		}
 	}
@@ -252,7 +255,8 @@ func (f *SearchField) Layout(gtx layout.Context, th *material.Theme, pth *PlotTh
 								f.selectedIndex = index
 								f.lastHoveredIndex = index
 							}
-							if item.click.Pressed() {
+							if item.click.Pressed() && index != f.lastClickedIndex {
+								f.lastClickedIndex = index
 								f.selectedIndex = index
 								f.lastHoveredIndex = index
 								f.updateTextFromSelection()

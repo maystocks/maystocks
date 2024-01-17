@@ -19,7 +19,7 @@ import (
 type Indicator struct {
 	resolution     candles.CandleResolution
 	timestamps     []time.Time
-	sma            []float64
+	result         []float64
 	dataLastChange time.Time
 	numPeriods     int
 	color          color.NRGBA
@@ -67,7 +67,7 @@ func (d *Indicator) Update(r candles.CandleResolution, data *indapi.PlotData) {
 		d.dataLastChange = data.DataLastChange
 		d.resolution = r
 		d.timestamps = data.Cache.Timestamps
-		d.sma = indicator.Sma(d.numPeriods, data.Cache.ClosePrices)
+		d.result = indicator.Sma(d.numPeriods, data.Cache.ClosePrices)
 	}
 }
 
@@ -76,5 +76,9 @@ func (d *Indicator) Plot(p indapi.LinePlotter, gtx layout.Context, th *material.
 	if empty := (color.NRGBA{}); c == empty {
 		c = th.Fg
 	}
-	p.PlotLine(d.timestamps, d.sma, d.resolution, c, gtx)
+	p.PlotLine(d.timestamps[0:len(d.result)], d.result, d.resolution, c, gtx)
+}
+
+func (d *Indicator) GetSubPlotType() indapi.SubPlotType {
+	return indapi.SubPlotTypePrice
 }

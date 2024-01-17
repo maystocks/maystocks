@@ -63,12 +63,12 @@ type PlotTag struct {
 }
 
 type SubPlotData struct {
-	Type       stockval.SubPlotType
+	Type       indapi.SubPlotType
 	Indicators []indapi.IndicatorData
 }
 
-var defaultSubPlotTemplates = map[stockval.SubPlotType]SubPlotTemplate{
-	stockval.SubPlotTypePrice: {
+var defaultSubPlotTemplates = map[indapi.SubPlotType]SubPlotTemplate{
+	indapi.SubPlotTypePrice: {
 		pxSizeRatioY:     0.75,
 		pxGridRatioY:     1,
 		valueGridY:       0.1,
@@ -76,7 +76,7 @@ var defaultSubPlotTemplates = map[stockval.SubPlotType]SubPlotTemplate{
 		maxDecimalPlaces: 2,
 		textPrecision:    2,
 	},
-	stockval.SubPlotTypeVolume: {
+	indapi.SubPlotTypeVolume: {
 		pxSizeRatioY:     0.25,
 		pxGridRatioY:     0.5,
 		valueGridY:       1,
@@ -85,7 +85,7 @@ var defaultSubPlotTemplates = map[stockval.SubPlotType]SubPlotTemplate{
 		textPrecision:    0,
 		fixedZeroValueY:  true,
 	},
-	stockval.SubPlotTypeIndicator: {
+	indapi.SubPlotTypeIndicator: {
 		pxSizeRatioY:     0.25,
 		pxGridRatioY:     0.5,
 		valueGridY:       1,
@@ -136,7 +136,7 @@ func (plot *Plot) setCandleResolution(r candles.CandleResolution, force bool) bo
 		plot.zeroValueX = r.ConvertTimeToCandleUnits(time.Now().Add(singleCandleDuration * 2))
 		// Regenerate base position and zoom during next rendering
 		for i := range plot.Sub {
-			if plot.Sub[i].Type == stockval.SubPlotTypePrice {
+			if plot.Sub[i].Type == indapi.SubPlotTypePrice {
 				plot.Sub[i].hasInitialCandleY = false
 				plot.Sub[i].hasInitialRangeY = false
 				plot.Sub[i].nextBaseValueY = 0

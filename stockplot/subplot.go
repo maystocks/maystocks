@@ -31,7 +31,7 @@ import (
 
 // All subplots of a plot have the same X values but can have different Y values
 type SubPlot struct {
-	Type              stockval.SubPlotType
+	Type              indapi.SubPlotType
 	Theme             *widgets.PlotTheme
 	Indicators        []indapi.IndicatorData
 	gridY             unit.Dp
@@ -401,7 +401,7 @@ func (sub *SubPlot) UpdateIndicators(data *stockval.CandlePlotData) {
 
 func (sub *SubPlot) Plot(data *stockval.CandlePlotData, quote stockval.QuoteData, gtx layout.Context, th *material.Theme) {
 	switch sub.Type {
-	case stockval.SubPlotTypePrice:
+	case indapi.SubPlotTypePrice:
 		sub.plotCandles(
 			data,
 			gtx,
@@ -414,12 +414,12 @@ func (sub *SubPlot) Plot(data *stockval.CandlePlotData, quote stockval.QuoteData
 		for _, ind := range sub.Indicators {
 			ind.Plot(sub, gtx, th)
 		}
-	case stockval.SubPlotTypeVolume:
+	case indapi.SubPlotTypeVolume:
 		sub.plotVolumeBars(
 			data,
 			gtx,
 		)
-	case stockval.SubPlotTypeIndicator:
+	case indapi.SubPlotTypeIndicator:
 		for _, ind := range sub.Indicators {
 			ind.Plot(sub, gtx, th)
 		}

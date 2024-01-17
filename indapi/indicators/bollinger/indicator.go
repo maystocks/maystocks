@@ -25,14 +25,13 @@ type Indicator struct {
 	bottom         []float64
 	dataLastChange time.Time
 	timeUnits      int
-	bandWidth      int
 	color          color.NRGBA
 }
 
 const Id = "bollinger"
 
 func NewIndicator() indapi.IndicatorData {
-	return &Indicator{timeUnits: 20, bandWidth: 2}
+	return &Indicator{timeUnits: 20}
 }
 
 func (d *Indicator) GetId() indapi.IndicatorId {
@@ -41,7 +40,6 @@ func (d *Indicator) GetId() indapi.IndicatorId {
 
 func (d *Indicator) GetProperties() map[string]string {
 	return map[string]string{
-		"Width":      strconv.Itoa(d.bandWidth),
 		"Time Units": strconv.Itoa(d.timeUnits),
 	}
 }
@@ -49,8 +47,6 @@ func (d *Indicator) GetProperties() map[string]string {
 func (d *Indicator) SetProperties(prop map[string]string) {
 	for key, value := range prop {
 		switch key {
-		case "Width":
-			properties.SetPositiveValue(&d.bandWidth, value)
 		case "Time Units":
 			properties.SetPositiveValue(&d.timeUnits, value)
 		default:
@@ -84,7 +80,11 @@ func (d *Indicator) Plot(p indapi.LinePlotter, gtx layout.Context, th *material.
 	if empty := (color.NRGBA{}); c == empty {
 		c = th.Fg
 	}
-	p.PlotLine(d.timestamps, d.top, d.resolution, c, gtx)
-	p.PlotLine(d.timestamps, d.mid, d.resolution, c, gtx)
-	p.PlotLine(d.timestamps, d.bottom, d.resolution, c, gtx)
+	p.PlotLine(d.timestamps[0:len(d.top)], d.top, d.resolution, c, gtx)
+	p.PlotLine(d.timestamps[0:len(d.mid)], d.mid, d.resolution, c, gtx)
+	p.PlotLine(d.timestamps[0:len(d.bottom)], d.bottom, d.resolution, c, gtx)
+}
+
+func (d *Indicator) GetSubPlotType() indapi.SubPlotType {
+	return indapi.SubPlotTypePrice
 }
