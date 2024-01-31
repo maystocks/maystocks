@@ -8,7 +8,9 @@ Note: THIS IS A PRE-ALPHA release!
 
 ### How to use
 
-You need a finnhub or alpaca account (or both) to retrieve stock market data.
+You need a finnhub or alpaca account (or both) to retrieve stock market data. Note: finnhub candle data is no longer
+available for free.
+
 Enter key/secret during setup, they will be encrypted using a password and stored locally (in %APPDATA%/maystocks on Windows,
 $HOME/Library/Application Support/maystocks on Mac).
 
