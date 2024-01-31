@@ -49,7 +49,7 @@ type StockWindow struct {
 
 type StockApp struct {
 	windows            []StockWindow
-	brokerData         map[stockval.BrokerId]BrokerData
+	brokerData         map[stockval.BrokerId]*BrokerData
 	vizMap             *skipmap.Int32Map[PlotView]
 	lastUiIndex        *int32
 	numUiPlots         image.Point
@@ -72,12 +72,12 @@ type StockApp struct {
 }
 
 type BrokerData struct {
-	broker            stockapi.Broker
-	dataRequestChan   chan stockapi.SubscribeDataRequest
-	dataResponseChan  chan stockapi.SubscribeDataResponse
-	tradeRequestChan  chan stockapi.TradeRequest
-	tradeResponseChan chan stockapi.TradeResponse
-	stockMap          *skipmap.StringMap[PriceData]
+	dataRequestChan    chan stockapi.SubscribeDataRequest
+	dataResponseChan   chan stockapi.SubscribeDataResponse
+	tradeRequestChan   chan stockapi.TradeRequest
+	tradeResponseChan  chan stockapi.TradeResponse
+	stockMap           *skipmap.StringMap[PriceData]
+	refreshTimeSeconds int
 }
 
 type plotData struct {
@@ -101,7 +101,7 @@ type StockUiUpdater interface {
 func NewStockApp(c config.Config) *StockApp {
 	return &StockApp{
 		windows:            make([]StockWindow, 1),
-		brokerData:         make(map[stockval.BrokerId]BrokerData),
+		brokerData:         make(map[stockval.BrokerId]*BrokerData),
 		vizMap:             skipmap.NewInt32[PlotView](),
 		lastUiIndex:        new(int32),
 		addRemovePlotMutex: new(sync.Mutex),
@@ -117,11 +117,11 @@ func (a *StockApp) Initialize(ctx context.Context, svr map[stockval.BrokerId]sto
 	defaultBroker stockval.BrokerId) error {
 	a.broker = svr
 	a.defaultBroker = defaultBroker
-
 	a.terminateTimerChan = make(chan struct{})
-	for name, r := range svr {
-		p := BrokerData{
-			broker: r,
+
+	// Initialize broker data.
+	for name, r := range a.broker {
+		p := &BrokerData{
 			// TODO size of buffered channels?
 			dataRequestChan:   make(chan stockapi.SubscribeDataRequest, 10),
 			dataResponseChan:  make(chan stockapi.SubscribeDataResponse, 10),
@@ -130,6 +130,7 @@ func (a *StockApp) Initialize(ctx context.Context, svr map[stockval.BrokerId]sto
 			stockMap:          skipmap.NewString[PriceData](),
 		}
 		a.brokerData[name] = p
+
 		go r.SubscribeData(ctx, p.dataRequestChan, p.dataResponseChan)
 		a.terminateWg.Add(1)
 		go a.handleDataResponseChan(p.dataResponseChan, p.stockMap)
@@ -138,12 +139,15 @@ func (a *StockApp) Initialize(ctx context.Context, svr map[stockval.BrokerId]sto
 		a.terminateWg.Add(1)
 		go a.handleTradeResponseChan(p.tradeResponseChan)
 	}
-	a.terminateWg.Add(1)
-	go a.handlePeriodicUpdate()
 
 	err := a.reloadConfiguration(ctx)
 	if err != nil {
 		return err
+	}
+
+	for broker, data := range a.brokerData {
+		a.terminateWg.Add(1)
+		go a.handlePeriodicUpdate(broker, data.refreshTimeSeconds)
 	}
 
 	return nil
@@ -252,6 +256,10 @@ func (a *StockApp) reloadConfiguration(ctx context.Context) error {
 			return true
 		})
 
+	for broker, data := range a.brokerData {
+		data.refreshTimeSeconds = appConfig.BrokerConfig[broker].RefreshIntervalSeconds
+	}
+
 	a.configView.UpdateUiFromConfig(&appConfig)
 	a.configView.SetWindowConfig(&appConfig)
 	a.indicatorsView.SetIndicatorConfig(&appConfig)
@@ -328,35 +336,39 @@ func (a *StockApp) handleTradeResponseChan(tradeResponseChan chan stockapi.Trade
 	}
 }
 
-func (a *StockApp) handlePeriodicUpdate() {
+func (a *StockApp) handlePeriodicUpdate(brokerName stockval.BrokerId, refreshTimeSeconds int) {
 	defer a.terminateWg.Done()
+	if refreshTimeSeconds <= 0 {
+		return
+	}
 	terminated := false
 	type requestedCandles struct {
-		brokerName stockval.BrokerId
 		figi       string
 		resolution candles.CandleResolution
 	}
 	var refreshedCandles []requestedCandles
 	for !terminated {
 		select {
-		// TODO 20 seconds is hard coded
 		case <-a.terminateTimerChan:
 			terminated = true
-		case <-time.After(20 * time.Second):
+		case <-time.After(time.Duration(refreshTimeSeconds) * time.Second):
 			refreshedCandles = refreshedCandles[:0]
+			// TODO only update brokers which are "in use"
 			a.vizMap.Range(
 				func(key int32, w PlotView) bool {
-					// Update data for all plots.
+					// Update data for all plots of this broker.
+					if w.GetLastBrokerName() != brokerName {
+						return true
+					}
 					// Avoid duplicate queries here, this can add up pretty much.
-					brokerName := w.GetLastBrokerName()
 					r := w.GetLastCandleResolution()
 					for _, refreshed := range refreshedCandles {
-						if refreshed.figi == w.AssetData.Figi && refreshed.brokerName == brokerName && refreshed.resolution == r {
+						if refreshed.figi == w.AssetData.Figi && refreshed.resolution == r {
 							// this is a duplicate, do not request twice.
 							return true
 						}
 					}
-					refreshedCandles = append(refreshedCandles, requestedCandles{brokerName: brokerName, figi: w.AssetData.Figi, resolution: r})
+					refreshedCandles = append(refreshedCandles, requestedCandles{figi: w.AssetData.Figi, resolution: r})
 
 					brokerData, ok := a.brokerData[brokerName]
 					if !ok {
@@ -444,8 +456,7 @@ func (a *StockApp) layoutPlots(ctx context.Context, gtx layout.Context) {
 	if a.numUiPlots.X*a.numUiPlots.Y > 0 { // do not divide by zero even if "kind of" a race condition occurs
 		a.vizMap.Range(
 			func(uiIndex int32, w PlotView) bool {
-				brokerName := w.GetLastBrokerName()
-				brokerData, ok := a.brokerData[brokerName]
+				brokerData, ok := a.brokerData[w.GetLastBrokerName()]
 				if !ok {
 					return true
 				}
@@ -456,20 +467,18 @@ func (a *StockApp) layoutPlots(ctx context.Context, gtx layout.Context) {
 				a.plotLayouts = append(a.plotLayouts, layout.Flexed(
 					1/float32(a.numUiPlots.X),
 					func(gtx layout.Context) layout.Dimensions {
-						d, refresh := w.Layout(ctx, gtx, a.matTheme, &priceData)
+						d, refreshQuote := w.Layout(ctx, gtx, a.matTheme, &priceData)
 						startTime, endTime, refreshPlot := w.UpdatePlotRange()
+						if refreshQuote {
+							priceData.RefreshQuote()
+						}
 						if refreshPlot {
 							candleResolution := w.GetLastCandleResolution()
 							priceData.candlesMutex.Lock()
 							candleUpdater := priceData.candles[candleResolution]
 							priceData.candlesMutex.Unlock()
 							candleUpdater.SetCandleTime(uiIndex, startTime, endTime)
-						}
-						if refresh || refreshPlot {
 							priceData.RefreshCandles(w.GetLastCandleResolution())
-						}
-						if refresh {
-							priceData.RefreshQuote()
 						}
 						return d
 					}))
@@ -565,16 +574,20 @@ func (a *StockApp) AddPlot(ctx context.Context, plotData plotData, appTradingUrl
 	if !ok {
 		panic("invalid data broker name")
 	}
+	broker, ok := a.broker[plotData.BrokerName]
+	if !ok {
+		panic("invalid broker name")
+	}
 	w := NewPlotView(a.getBrokerList(), a.plotTheme)
 	if plotData.UiIndex == 0 {
 		plotData.UiIndex = atomic.AddInt32(a.lastUiIndex, 1)
 	}
-	w.Initialize(ctx, plotData, brokerData.broker, a, appTradingUrl)
+	w.Initialize(ctx, plotData, broker, a, appTradingUrl)
 	a.vizMap.Store(w.UiIndex, w)
 
 	_, loaded := brokerData.stockMap.LoadOrStoreLazy(plotData.Entry.Figi, func() PriceData {
 		priceData := NewPriceData(plotData.Entry)
-		priceData.Initialize(ctx, brokerData.broker, a)
+		priceData.Initialize(ctx, broker, a)
 		return priceData
 	})
 	if !loaded {
@@ -584,7 +597,7 @@ func (a *StockApp) AddPlot(ctx context.Context, plotData plotData, appTradingUrl
 			Type:  stockapi.RealtimeTradesSubscribe,
 		}
 		brokerData.dataRequestChan <- dataRequest
-		if brokerData.broker.GetCapabilities().RealtimeBidAsk {
+		if broker.GetCapabilities().RealtimeBidAsk {
 			bidAskRequest := stockapi.SubscribeDataRequest{
 				Asset: plotData.Entry,
 				Type:  stockapi.RealtimeBidAskSubscribe,
@@ -635,6 +648,10 @@ func (a *StockApp) RemovePlot(entry stockval.AssetData, uiIndex int32) {
 	if !dataNeeded {
 		brokerData, ok := a.brokerData[brokerName]
 		if !ok {
+			panic("invalid broker data name when removing plot")
+		}
+		broker, ok := a.broker[brokerName]
+		if !ok {
 			panic("invalid broker name when removing plot")
 		}
 		priceData, loaded := brokerData.stockMap.LoadAndDelete(entry.Figi)
@@ -648,7 +665,7 @@ func (a *StockApp) RemovePlot(entry stockval.AssetData, uiIndex int32) {
 			Type:  stockapi.RealtimeTradesUnsubscribe,
 		}
 		brokerData.dataRequestChan <- tradesRequestData
-		if brokerData.broker.GetCapabilities().RealtimeBidAsk {
+		if broker.GetCapabilities().RealtimeBidAsk {
 			bidAskRequestData := stockapi.SubscribeDataRequest{
 				Asset: entry,
 				Type:  stockapi.RealtimeBidAskUnsubscribe,

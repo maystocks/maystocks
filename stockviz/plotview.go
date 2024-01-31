@@ -240,7 +240,7 @@ func (v *PlotView) handleInput(ctx context.Context, gtx layout.Context) {
 }
 
 func (v *PlotView) Layout(ctx context.Context, gtx layout.Context, th *material.Theme, priceData *PriceData) (layout.Dimensions, bool) {
-	refreshData := false
+	refreshQuote := false
 	gtx.Constraints.Min = image.Point{} // in order to be able to calculate widget width
 	var spy *eventx.Spy
 	spy, gtx = eventx.Enspy(gtx)
@@ -305,10 +305,12 @@ func (v *PlotView) Layout(ctx context.Context, gtx layout.Context, th *material.
 							d := v.Plot.Layout(gtx, th)
 							// TODO allow displaying lines instead of candles
 							candleUpdater, loaded := priceData.LoadOrAddCandleResolution(ctx, resolution)
-							if !loaded || candleResolutionChanged {
-								refreshData = true
+							if candleResolutionChanged {
 								v.lastPlotTimeRange.lastPlotStartTime = time.Time{}
 								v.lastPlotTimeRange.lastPlotEndTime = time.Time{}
+							}
+							if !loaded {
+								refreshQuote = true
 							}
 							for _, s := range v.Plot.Sub {
 								s.UpdateIndicators(candleUpdater.CandleData)
@@ -376,7 +378,7 @@ func (v *PlotView) Layout(ctx context.Context, gtx layout.Context, th *material.
 	// TODO Currently, we need to handle search field input after spying. This should be done before layout.
 	v.searchField.HandleInput(gtx)
 
-	return layout.Dimensions{Size: gtx.Constraints.Max}, refreshData
+	return layout.Dimensions{Size: gtx.Constraints.Max}, refreshQuote
 }
 
 // Call in same thread as Layout()
@@ -394,7 +396,6 @@ func (v *PlotView) UpdatePlotRange() (startTime time.Time, endTime time.Time, re
 		v.lastPlotTimeRange.lastPlotEndTime.IsZero() ||
 		v.lastPlotTimeRange.lastPlotStartTime.Sub(startTime) > startRefreshDiff ||
 		v.lastPlotTimeRange.lastPlotEndTime.Sub(endTime) < endRefreshDiff {
-
 		v.lastPlotTimeRange.lastPlotStartTime = startTime
 		v.lastPlotTimeRange.lastPlotEndTime = endTime
 		refreshPlot = true

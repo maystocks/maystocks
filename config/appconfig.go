@@ -31,7 +31,8 @@ type BrokerConfig struct {
 	// According to https://finnhub.io/docs/api/rate-limit there is a general rate limit per second
 	RateLimitPerSecond int `yaml:",omitempty"`
 	// e.g. finnhub sometimes does not reply, so use a timeout.
-	DataTimeoutSeconds int `yaml:",omitempty"`
+	DataTimeoutSeconds     int `yaml:",omitempty"`
+	RefreshIntervalSeconds int `yaml:",omitempty"`
 }
 
 var defaultBrokerConfig = NewBrokerConfigMap()
@@ -46,21 +47,23 @@ func NewAppConfig() AppConfig {
 func NewBrokerConfigMap() map[stockval.BrokerId]BrokerConfig {
 	return map[stockval.BrokerId]BrokerConfig{
 		"finnhub": {
-			DataUrl:            "https://finnhub.io/api/v1",
-			RegistrationUrl:    "https://finnhub.io/",
-			WsUrl:              "wss://ws.finnhub.io",
-			RateLimitPerSecond: 30,
-			DataTimeoutSeconds: 10,
+			DataUrl:                "https://finnhub.io/api/v1",
+			RegistrationUrl:        "https://finnhub.io/",
+			WsUrl:                  "wss://ws.finnhub.io",
+			RateLimitPerSecond:     30,
+			DataTimeoutSeconds:     10,
+			RefreshIntervalSeconds: 20,
 		},
 		"alpaca": {
-			DataUrl:            "https://data.alpaca.markets/v2",
-			TradingUrl:         "https://api.alpaca.markets/v2",
-			PaperTradingUrl:    "https://paper-api.alpaca.markets/v2",
-			AppTradingUrl:      "https://app.alpaca.markets/trade/%s",
-			RegistrationUrl:    "https://alpaca.markets/",
-			WsUrl:              "wss://stream.data.alpaca.markets/v2",
-			UseApiSecret:       true,
-			DataTimeoutSeconds: 10,
+			DataUrl:                "https://data.alpaca.markets/v2",
+			TradingUrl:             "https://api.alpaca.markets/v2",
+			PaperTradingUrl:        "https://paper-api.alpaca.markets/v2",
+			AppTradingUrl:          "https://app.alpaca.markets/trade/%s",
+			RegistrationUrl:        "https://alpaca.markets/",
+			WsUrl:                  "wss://stream.data.alpaca.markets/v2",
+			UseApiSecret:           true,
+			DataTimeoutSeconds:     10,
+			RefreshIntervalSeconds: 60,
 		},
 		"openfigi": {
 			DataUrl:            "https://api.openfigi.com/v3",
@@ -109,6 +112,9 @@ func (a *AppConfig) RemoveDefaults() {
 		if c.WsUrl == def.WsUrl {
 			c.WsUrl = ""
 		}
+		if c.RefreshIntervalSeconds == def.RefreshIntervalSeconds {
+			c.RefreshIntervalSeconds = 0
+		}
 		a.BrokerConfig[key] = c
 	}
 }
@@ -134,6 +140,9 @@ func (a *AppConfig) RestoreDefaults() {
 		}
 		if len(c.AppTradingUrl) == 0 {
 			c.AppTradingUrl = def.AppTradingUrl
+		}
+		if c.RefreshIntervalSeconds == 0 {
+			c.RefreshIntervalSeconds = def.RefreshIntervalSeconds
 		}
 		a.BrokerConfig[key] = c
 	}
