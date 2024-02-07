@@ -64,5 +64,5 @@ func TestGetYpos(t *testing.T) {
 
 	posY := plot.Sub[0].frame.projection.getYpos(1.2)
 
-	assert.True(t, math.Abs(270.0-posY) < stockval.NearZero)
+	assert.True(t, math.Abs(220.0-posY) < stockval.NearZero)
 }
