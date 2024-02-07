@@ -24,14 +24,14 @@ func init() {
 	IndicatorRegistry[stochastics.Id] = stochastics.NewIndicator
 }
 
-func Create(id indapi.IndicatorId, properties map[string]string, color color.NRGBA) indapi.IndicatorData {
+func Create(id indapi.IndicatorId, properties map[string]string, colors []color.NRGBA) indapi.IndicatorData {
 	d, ok := IndicatorRegistry[id]
 	if !ok {
 		panic("invalid indicator name")
 	}
 	ind := d()
 	ind.SetProperties(properties)
-	ind.SetColor(color)
+	ind.SetColors(colors)
 	return ind
 }
 

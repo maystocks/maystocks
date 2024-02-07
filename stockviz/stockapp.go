@@ -187,7 +187,7 @@ func (a *StockApp) reloadConfiguration(ctx context.Context) error {
 			for _, s := range plotConfig.SubPlotConfig {
 				indicatorData := make([]indapi.IndicatorData, 0, len(s.Indicators))
 				for _, c := range s.Indicators {
-					indicatorData = append(indicatorData, indicators.Create(c.IndicatorId, c.Properties, c.Color))
+					indicatorData = append(indicatorData, indicators.Create(c.IndicatorId, c.Properties, c.Colors))
 				}
 				subPlots = append(subPlots, stockplot.SubPlotData{Type: s.Type, Indicators: indicatorData})
 			}
@@ -232,7 +232,7 @@ func (a *StockApp) reloadConfiguration(ctx context.Context) error {
 							changed = true
 							break
 						}
-						if plotConfig.SubPlotConfig[i].Indicators[j].Color != c.GetColor() {
+						if !reflect.DeepEqual(plotConfig.SubPlotConfig[i].Indicators[j].Colors, c.GetColors()) {
 							changed = true
 							break
 						}
@@ -245,7 +245,7 @@ func (a *StockApp) reloadConfiguration(ctx context.Context) error {
 				for _, s := range plotConfig.SubPlotConfig {
 					indicatorData := make([]indapi.IndicatorData, 0, len(s.Indicators))
 					for _, c := range s.Indicators {
-						indicatorData = append(indicatorData, indicators.Create(c.IndicatorId, c.Properties, c.Color))
+						indicatorData = append(indicatorData, indicators.Create(c.IndicatorId, c.Properties, c.Colors))
 					}
 					subPlots = append(subPlots, stockplot.SubPlotData{Type: s.Type, Indicators: indicatorData})
 				}

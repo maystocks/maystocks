@@ -151,7 +151,7 @@ func (v *IndicatorsView) createIndicator(ind config.IndicatorConfig) IndicatorVi
 	var colorName string
 	for name, value := range colornames.Map {
 		// no alpha, directly convert
-		if value == color.RGBA(ind.Color) {
+		if len(ind.Colors) > 0 && value == color.RGBA(ind.Colors[0]) {
 			colorName = name
 			break
 		}
@@ -220,15 +220,17 @@ func (v *IndicatorsView) handleInput(gtx layout.Context, plotIndex int) {
 					// no alpha, simply assign.
 					nrgba = color.NRGBA(c)
 				}
-				v.indicatorConfig[plotIndex][i].IndicatorConfig.Color = nrgba
+				for j := range v.indicatorConfig[plotIndex][i].IndicatorConfig.Colors {
+					v.indicatorConfig[plotIndex][i].IndicatorConfig.Colors[j] = nrgba
+				}
 			}
 			v.confirmed = true
 			invalidate = true
 		}
 	}
 	if v.buttonAdd.Clicked(gtx) {
-		defaultData := indicators.Create(indicators.DefaultId, nil, color.NRGBA{})
-		newView := v.createIndicator(config.IndicatorConfig{IndicatorId: defaultData.GetId(), Properties: defaultData.GetProperties()})
+		defaultData := indicators.Create(indicators.DefaultId, nil, []color.NRGBA{})
+		newView := v.createIndicator(config.IndicatorConfig{IndicatorId: defaultData.GetId(), Properties: defaultData.GetProperties(), Colors: defaultData.GetColors()})
 		v.indicatorConfig[plotIndex] = append(v.indicatorConfig[plotIndex], newView)
 		invalidate = true
 	}
@@ -241,9 +243,9 @@ func (v *IndicatorsView) handleInput(gtx layout.Context, plotIndex int) {
 		}
 		clickedIndicator := v.indicatorConfig[plotIndex][i].dropDownIndicator.ClickedIndex()
 		if clickedIndicator >= 0 {
-			newData := indicators.Create(indapi.IndicatorId(v.indicatorsList[clickedIndicator]), nil, color.NRGBA{})
+			newData := indicators.Create(indapi.IndicatorId(v.indicatorsList[clickedIndicator]), nil, []color.NRGBA{})
 			v.indicatorConfig[plotIndex][i] =
-				v.createIndicator(config.IndicatorConfig{IndicatorId: newData.GetId(), Properties: newData.GetProperties()})
+				v.createIndicator(config.IndicatorConfig{IndicatorId: newData.GetId(), Properties: newData.GetProperties(), Colors: newData.GetColors()})
 			invalidate = true
 		}
 	}

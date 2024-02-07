@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"gioui.org/layout"
-	"gioui.org/widget/material"
 	"github.com/cinar/indicator"
 )
 
@@ -21,7 +20,7 @@ type Indicator struct {
 	k              []float64
 	d              []float64
 	dataLastChange time.Time
-	color          color.NRGBA
+	colors         []color.NRGBA
 }
 
 const Id = "stochastics"
@@ -47,12 +46,12 @@ func (d *Indicator) SetProperties(prop map[string]string) {
 	}
 }
 
-func (d *Indicator) GetColor() color.NRGBA {
-	return d.color
+func (d *Indicator) GetColors() []color.NRGBA {
+	return indapi.GetMinColors(d.colors, 2)
 }
 
-func (d *Indicator) SetColor(c color.NRGBA) {
-	d.color = c
+func (d *Indicator) SetColors(c []color.NRGBA) {
+	d.colors = c
 }
 
 func (d *Indicator) Update(r candles.CandleResolution, data *indapi.PlotData) {
@@ -67,13 +66,10 @@ func (d *Indicator) Update(r candles.CandleResolution, data *indapi.PlotData) {
 	}
 }
 
-func (d *Indicator) Plot(p indapi.LinePlotter, maxValue *float64, gtx layout.Context, th *material.Theme) {
-	c := d.color
-	if empty := (color.NRGBA{}); c == empty {
-		c = th.Fg
-	}
-	p.PlotLine(d.timestamps[0:len(d.k)], d.k, maxValue, d.resolution, c, gtx)
-	p.PlotLine(d.timestamps[0:len(d.d)], d.d, maxValue, d.resolution, c, gtx)
+func (d *Indicator) Plot(p indapi.LinePlotter, maxValue *float64, defaultColor color.NRGBA, gtx layout.Context) {
+	c := indapi.GetNormalisedColors(d.GetColors(), defaultColor)
+	p.PlotLine(d.timestamps[0:len(d.k)], d.k, maxValue, d.resolution, c[0], gtx)
+	p.PlotLine(d.timestamps[0:len(d.d)], d.d, maxValue, d.resolution, c[1], gtx)
 }
 
 func (d *Indicator) GetSubPlotType() indapi.SubPlotType {

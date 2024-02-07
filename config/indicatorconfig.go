@@ -11,5 +11,5 @@ import (
 type IndicatorConfig struct {
 	IndicatorId indapi.IndicatorId
 	Properties  map[string]string
-	Color       color.NRGBA
+	Colors      []color.NRGBA
 }

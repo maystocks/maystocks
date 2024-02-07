@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"gioui.org/layout"
-	"gioui.org/widget/material"
 	"github.com/ericlagergren/decimal"
 )
 
@@ -68,11 +67,27 @@ type LinePlotter interface {
 
 type IndicatorData interface {
 	Update(r candles.CandleResolution, data *PlotData)
-	Plot(p LinePlotter, maxValue *float64, gtx layout.Context, th *material.Theme)
+	Plot(p LinePlotter, maxValue *float64, defaultColor color.NRGBA, gtx layout.Context)
 	GetId() IndicatorId
 	GetProperties() map[string]string
 	SetProperties(map[string]string)
-	GetColor() color.NRGBA
-	SetColor(color.NRGBA)
+	GetColors() []color.NRGBA
+	SetColors([]color.NRGBA)
 	GetSubPlotType() SubPlotType
+}
+
+func GetMinColors(c []color.NRGBA, numColors int) []color.NRGBA {
+	for len(c) < numColors {
+		c = append(c, color.NRGBA{})
+	}
+	return c
+}
+
+func GetNormalisedColors(c []color.NRGBA, def color.NRGBA) []color.NRGBA {
+	for i := range c {
+		if empty := (color.NRGBA{}); c[i] == empty {
+			c[i] = def
+		}
+	}
+	return c
 }

@@ -56,6 +56,7 @@ type PlotTheme struct {
 	HoverBgColor                 color.NRGBA
 	FrameBgColor                 color.NRGBA
 	FrameTextColor               color.NRGBA
+	DefaultIndicatorColor        color.NRGBA
 }
 
 func NewDarkPlotTheme() *PlotTheme {
@@ -92,6 +93,7 @@ func NewDarkPlotTheme() *PlotTheme {
 		HoverBgColor:                 color.NRGBA{R: 74, G: 74, B: 107, A: 255},
 		FrameBgColor:                 color.NRGBA{R: 50, G: 50, B: 50, A: 200},
 		FrameTextColor:               color.NRGBA{R: 255, G: 255, B: 255, A: 255},
+		DefaultIndicatorColor:        color.NRGBA{R: 255, G: 255, B: 255, A: 255},
 	}
 }
 

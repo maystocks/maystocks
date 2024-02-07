@@ -417,7 +417,7 @@ func (sub *SubPlot) Plot(data *stockval.CandlePlotData, quote stockval.QuoteData
 			th,
 		)
 		for _, ind := range sub.Indicators {
-			ind.Plot(sub, &maxIndicatorValue, gtx, th)
+			ind.Plot(sub, &maxIndicatorValue, sub.Theme.DefaultIndicatorColor, gtx)
 		}
 	case indapi.SubPlotTypeVolume:
 		sub.plotVolumeBars(
@@ -426,7 +426,7 @@ func (sub *SubPlot) Plot(data *stockval.CandlePlotData, quote stockval.QuoteData
 		)
 	case indapi.SubPlotTypeIndicator:
 		for _, ind := range sub.Indicators {
-			ind.Plot(sub, &maxIndicatorValue, gtx, th)
+			ind.Plot(sub, &maxIndicatorValue, sub.Theme.DefaultIndicatorColor, gtx)
 		}
 		sub.autoZoomGenericY(maxIndicatorValue, gtx)
 	}
