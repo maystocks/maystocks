@@ -71,12 +71,12 @@ func (d *Indicator) Update(r candles.CandleResolution, data *indapi.PlotData) {
 	}
 }
 
-func (d *Indicator) Plot(p indapi.LinePlotter, gtx layout.Context, th *material.Theme) {
+func (d *Indicator) Plot(p indapi.LinePlotter, maxValue *float64, gtx layout.Context, th *material.Theme) {
 	c := d.color
 	if empty := (color.NRGBA{}); c == empty {
 		c = th.Fg
 	}
-	p.PlotLine(d.timestamps[0:len(d.result)], d.result, d.resolution, c, gtx)
+	p.PlotLine(d.timestamps[0:len(d.result)], d.result, maxValue, d.resolution, c, gtx)
 }
 
 func (d *Indicator) GetSubPlotType() indapi.SubPlotType {

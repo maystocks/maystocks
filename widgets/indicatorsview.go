@@ -70,16 +70,42 @@ func (v *IndicatorsView) GetIndicatorConfig(appConfig *config.AppConfig) {
 		for s := range appConfig.WindowConfig[0].PlotConfig[i].SubPlotConfig {
 			appConfig.WindowConfig[0].PlotConfig[i].SubPlotConfig[s].Indicators = appConfig.WindowConfig[0].PlotConfig[i].SubPlotConfig[s].Indicators[:0]
 		}
+		// Clear existing indicator subplots, will be re-added.
+		s := 0
+		for _, c := range appConfig.WindowConfig[0].PlotConfig[i].SubPlotConfig {
+			if c.Type != indapi.SubPlotTypeIndicator {
+				appConfig.WindowConfig[0].PlotConfig[i].SubPlotConfig[s] = c
+				s++
+			}
+		}
+		appConfig.WindowConfig[0].PlotConfig[i].SubPlotConfig = appConfig.WindowConfig[0].PlotConfig[i].SubPlotConfig[:s]
 		// Add configuration according to ui.
 		for j := range v.indicatorConfig[i] {
+			subPlotFound := false
 			for s := range appConfig.WindowConfig[0].PlotConfig[i].SubPlotConfig {
-				if appConfig.WindowConfig[0].PlotConfig[i].SubPlotConfig[s].Type == indicators.GetSubPlotType(v.indicatorConfig[i][j].IndicatorId) {
+				subPlotType := appConfig.WindowConfig[0].PlotConfig[i].SubPlotConfig[s].Type
+				if subPlotType != indapi.SubPlotTypeIndicator && subPlotType == indicators.GetSubPlotType(v.indicatorConfig[i][j].IndicatorId) {
 					appConfig.WindowConfig[0].PlotConfig[i].SubPlotConfig[s].Indicators =
 						append(
 							appConfig.WindowConfig[0].PlotConfig[i].SubPlotConfig[s].Indicators,
 							v.indicatorConfig[i][j].IndicatorConfig,
 						)
+					subPlotFound = true
 				}
+			}
+			// Add custom indicator sub plots if required.
+			if !subPlotFound {
+				appConfig.WindowConfig[0].PlotConfig[i].SubPlotConfig =
+					append(
+						appConfig.WindowConfig[0].PlotConfig[i].SubPlotConfig,
+						config.NewSubPlotIndicatorConfig(),
+					)
+				lastIndex := len(appConfig.WindowConfig[0].PlotConfig[i].SubPlotConfig) - 1
+				appConfig.WindowConfig[0].PlotConfig[i].SubPlotConfig[lastIndex].Indicators =
+					append(
+						appConfig.WindowConfig[0].PlotConfig[i].SubPlotConfig[lastIndex].Indicators,
+						v.indicatorConfig[i][j].IndicatorConfig,
+					)
 			}
 		}
 		// There may be additional or removed properties for indicators, we need to merge the maps.

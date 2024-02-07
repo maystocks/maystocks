@@ -34,3 +34,9 @@ func NewSubPlotVolumeConfig() SubPlotConfig {
 		Type: indapi.SubPlotTypeVolume,
 	}
 }
+
+func NewSubPlotIndicatorConfig() SubPlotConfig {
+	return SubPlotConfig{
+		Type: indapi.SubPlotTypeIndicator,
+	}
+}

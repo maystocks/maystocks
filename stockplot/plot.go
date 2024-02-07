@@ -69,7 +69,7 @@ type SubPlotData struct {
 
 var defaultSubPlotTemplates = map[indapi.SubPlotType]SubPlotTemplate{
 	indapi.SubPlotTypePrice: {
-		pxSizeRatioY:     0.75,
+		pxBaseRatioY:     0.5,
 		pxGridRatioY:     1,
 		valueGridY:       0.1,
 		zoomValueY:       0.05,
@@ -77,7 +77,7 @@ var defaultSubPlotTemplates = map[indapi.SubPlotType]SubPlotTemplate{
 		textPrecision:    2,
 	},
 	indapi.SubPlotTypeVolume: {
-		pxSizeRatioY:     0.25,
+		pxBaseRatioY:     0.25,
 		pxGridRatioY:     0.5,
 		valueGridY:       1,
 		zoomValueY:       1,
@@ -86,9 +86,9 @@ var defaultSubPlotTemplates = map[indapi.SubPlotType]SubPlotTemplate{
 		fixedZeroValueY:  true,
 	},
 	indapi.SubPlotTypeIndicator: {
-		pxSizeRatioY:     0.25,
+		pxBaseRatioY:     0.25,
 		pxGridRatioY:     0.5,
-		valueGridY:       1,
+		valueGridY:       50,
 		zoomValueY:       1,
 		maxDecimalPlaces: 0,
 		textPrecision:    0,
@@ -103,14 +103,20 @@ func NewPlot(t *widgets.PlotTheme, r candles.CandleResolution, sx stockval.PlotS
 		Theme: t,
 		Sub:   make([]*SubPlot, len(s)),
 	}
+	var sumBaseRatio float64
 	for i := range s {
+		template := defaultSubPlotTemplates[s[i].Type]
 		p.Sub[i] = &SubPlot{
 			Theme:           t,
 			Type:            s[i].Type,
 			Indicators:      s[i].Indicators,
 			gridY:           t.DefaultPlotGrid.Y,
-			SubPlotTemplate: defaultSubPlotTemplates[s[i].Type],
+			SubPlotTemplate: template,
 		}
+		sumBaseRatio += template.pxBaseRatioY
+	}
+	for i := range s {
+		p.Sub[i].pxSizeRatioY = p.Sub[i].SubPlotTemplate.pxBaseRatioY / sumBaseRatio
 	}
 	if sx.Grid > stockval.NearZero {
 		p.gridX = sx.Grid

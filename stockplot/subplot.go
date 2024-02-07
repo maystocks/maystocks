@@ -41,6 +41,7 @@ type SubPlot struct {
 	hasInitialRangeY  bool
 	nextBaseValueY    float64
 	nextValueRangeY   float64
+	pxSizeRatioY      float64
 	SubPlotTemplate
 	frame struct {
 		basePos                         image.Point
@@ -76,7 +77,7 @@ type SubPlot struct {
 }
 
 type SubPlotTemplate struct {
-	pxSizeRatioY     float64
+	pxBaseRatioY     float64
 	pxGridRatioY     float64
 	valueGridY       float64
 	zoomValueY       float64
@@ -339,7 +340,7 @@ func (sub *SubPlot) plotLineSegment(t time.Time, value float64, r candles.Candle
 	*pyPosI = yPosI
 }
 
-func (sub *SubPlot) PlotLine(timestamps []time.Time, data []float64, r candles.CandleResolution, c color.NRGBA, gtx layout.Context) {
+func (sub *SubPlot) PlotLine(timestamps []time.Time, data []float64, maxValue *float64, r candles.CandleResolution, c color.NRGBA, gtx layout.Context) {
 	dataSize := len(data)
 	if dataSize <= 1 {
 		return
@@ -355,6 +356,9 @@ func (sub *SubPlot) PlotLine(timestamps []time.Time, data []float64, r candles.C
 	var pyPosI int = -1
 	for i, t := range timestamps {
 		sub.plotLineSegment(t, data[i], r, &pxPos, &pyPos, &pxPosI, &pyPosI, i == 0, clipRect, &path)
+		if data[i] > *maxValue {
+			*maxValue = data[i]
+		}
 	}
 
 	// Only draw within the plot area.
@@ -400,6 +404,7 @@ func (sub *SubPlot) UpdateIndicators(data *stockval.CandlePlotData) {
 }
 
 func (sub *SubPlot) Plot(data *stockval.CandlePlotData, quote stockval.QuoteData, gtx layout.Context, th *material.Theme) {
+	var maxIndicatorValue float64
 	switch sub.Type {
 	case indapi.SubPlotTypePrice:
 		sub.plotCandles(
@@ -412,7 +417,7 @@ func (sub *SubPlot) Plot(data *stockval.CandlePlotData, quote stockval.QuoteData
 			th,
 		)
 		for _, ind := range sub.Indicators {
-			ind.Plot(sub, gtx, th)
+			ind.Plot(sub, &maxIndicatorValue, gtx, th)
 		}
 	case indapi.SubPlotTypeVolume:
 		sub.plotVolumeBars(
@@ -421,8 +426,9 @@ func (sub *SubPlot) Plot(data *stockval.CandlePlotData, quote stockval.QuoteData
 		)
 	case indapi.SubPlotTypeIndicator:
 		for _, ind := range sub.Indicators {
-			ind.Plot(sub, gtx, th)
+			ind.Plot(sub, &maxIndicatorValue, gtx, th)
 		}
+		sub.autoZoomGenericY(maxIndicatorValue, gtx)
 	}
 }
 
@@ -644,7 +650,6 @@ func (sub *SubPlot) plotVolumeBars(data *stockval.CandlePlotData, gtx layout.Con
 	proj := sub.frame.projection
 	// Base position is always the same, the bar is painted starting at the X axis.
 	y2Pos := sub.frame.projection.getYpos(0)
-	maxPlottableYvalue := sub.calcYvalueRange()
 
 	var maxYvalue float64
 	data.DataMutex.RLock()
@@ -672,9 +677,14 @@ func (sub *SubPlot) plotVolumeBars(data *stockval.CandlePlotData, gtx layout.Con
 	sub.strokeCandleSegments(gtx, sub.frame.unsureGreenVolumeSegments, float32(barWidth), sub.Theme.BarUnknownColor)
 	sub.strokeCandleSegments(gtx, sub.frame.unsureRedVolumeSegments, float32(barWidth), sub.Theme.BarUnknownColor)
 
+	sub.autoZoomGenericY(maxYvalue, gtx)
+}
+
+func (sub *SubPlot) autoZoomGenericY(maxYvalue float64, gtx layout.Context) {
+	maxPlottableYvalue := sub.calcYvalueRange()
 	// Auto-Zoom subplot to better fit data.
 	if maxYvalue > stockval.NearZero && (maxYvalue > maxPlottableYvalue || maxYvalue < maxPlottableYvalue/2) {
-		// Use rounded value range because this is volume data.
+		// Use rounded value range because this is generic data.
 		sub.nextValueRangeY = sub.getValueRange(maxYvalue)
 		// Redraw this subplot with new value range settings.
 		op.InvalidateOp{}.Add(gtx.Ops)

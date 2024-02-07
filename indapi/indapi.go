@@ -63,12 +63,12 @@ const (
 )
 
 type LinePlotter interface {
-	PlotLine(timestamps []time.Time, data []float64, r candles.CandleResolution, c color.NRGBA, gtx layout.Context)
+	PlotLine(timestamps []time.Time, data []float64, maxValue *float64, r candles.CandleResolution, c color.NRGBA, gtx layout.Context)
 }
 
 type IndicatorData interface {
 	Update(r candles.CandleResolution, data *PlotData)
-	Plot(p LinePlotter, gtx layout.Context, th *material.Theme)
+	Plot(p LinePlotter, maxValue *float64, gtx layout.Context, th *material.Theme)
 	GetId() IndicatorId
 	GetProperties() map[string]string
 	SetProperties(map[string]string)

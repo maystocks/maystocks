@@ -8,6 +8,7 @@ import (
 	"maystocks/indapi"
 	"maystocks/indapi/indicators/bollinger"
 	"maystocks/indapi/indicators/sma"
+	"maystocks/indapi/indicators/stochastics"
 	"sort"
 
 	"golang.org/x/exp/maps"
@@ -20,6 +21,7 @@ var IndicatorRegistry map[indapi.IndicatorId]func() indapi.IndicatorData = make(
 func init() {
 	IndicatorRegistry[bollinger.Id] = bollinger.NewIndicator
 	IndicatorRegistry[sma.Id] = sma.NewIndicator
+	IndicatorRegistry[stochastics.Id] = stochastics.NewIndicator
 }
 
 func Create(id indapi.IndicatorId, properties map[string]string, color color.NRGBA) indapi.IndicatorData {
