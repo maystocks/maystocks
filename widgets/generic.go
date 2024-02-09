@@ -71,9 +71,14 @@ func layoutConfirmationFrame(th *material.Theme, margin unit.Dp, gtx layout.Cont
 				return layout.Stack{Alignment: layout.NE}.Layout(
 					gtx,
 					layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-						return layout.UniformInset(margin/2).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							return w(gtx)
-						})
+						return layout.Flex{Alignment: layout.Middle}.Layout(
+							gtx,
+							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+								return layout.UniformInset(margin/2).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+									return w(gtx)
+								})
+							}),
+						)
 					}),
 					layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 						if buttonClose != nil {
