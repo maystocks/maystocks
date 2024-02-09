@@ -47,11 +47,11 @@ func (d *Indicator) SetProperties(prop map[string]string) {
 }
 
 func (d *Indicator) GetColors() []color.NRGBA {
-	return indapi.GetMinColors(d.colors, 2)
+	return d.colors
 }
 
 func (d *Indicator) SetColors(c []color.NRGBA) {
-	d.colors = c
+	d.colors = indapi.GetMinColors(c, 2)
 }
 
 func (d *Indicator) Update(r candles.CandleResolution, data *indapi.PlotData) {
@@ -67,7 +67,7 @@ func (d *Indicator) Update(r candles.CandleResolution, data *indapi.PlotData) {
 }
 
 func (d *Indicator) Plot(p indapi.LinePlotter, maxValue *float64, defaultColor color.NRGBA, gtx layout.Context) {
-	c := indapi.GetNormalisedColors(d.GetColors(), defaultColor)
+	c := indapi.GetNormalisedColors(d.colors, defaultColor)
 	p.PlotLine(d.timestamps[0:len(d.k)], d.k, maxValue, d.resolution, c[0], gtx)
 	p.PlotLine(d.timestamps[0:len(d.d)], d.d, maxValue, d.resolution, c[1], gtx)
 }
