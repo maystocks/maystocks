@@ -25,7 +25,7 @@ type IndicatorView struct {
 	config.IndicatorConfig
 	dropDownIndicator  *DropDown
 	buttonRemove       widget.Clickable
-	colorTextField     component.TextField
+	colorTextFields    []component.TextField
 	propertyKeys       []string
 	propertyChildren   []layout.FlexChild
 	propertyTextFields map[string]*component.TextField
@@ -148,15 +148,19 @@ func (v *IndicatorsView) createIndicator(ind config.IndicatorConfig) IndicatorVi
 		dropDownIndicator:  NewDropDown(v.indicatorsList, indicatorIndex),
 		propertyTextFields: make(map[string]*component.TextField),
 	}
-	var colorName string
-	for name, value := range colornames.Map {
-		// no alpha, directly convert
-		if len(ind.Colors) > 0 && value == color.RGBA(ind.Colors[0]) {
-			colorName = name
-			break
+	for i := range ind.Colors {
+		var colorName string
+		for name, value := range colornames.Map {
+			// no alpha, directly convert
+			if len(ind.Colors) > 0 && value == color.RGBA(ind.Colors[i]) {
+				colorName = name
+				break
+			}
 		}
+		var textField component.TextField
+		textField.SetText(colorName)
+		newView.colorTextFields = append(newView.colorTextFields, textField)
 	}
-	newView.colorTextField.SetText(colorName)
 	for key, value := range ind.Properties {
 		t := component.TextField{Editor: widget.Editor{Submit: true, SingleLine: true, MaxLen: 128}}
 		t.SetText(value)
@@ -214,13 +218,13 @@ func (v *IndicatorsView) handleInput(gtx layout.Context, plotIndex int) {
 				for _, key := range v.indicatorConfig[plotIndex][i].propertyKeys {
 					v.indicatorConfig[plotIndex][i].IndicatorConfig.Properties[key] = strings.TrimSpace(v.indicatorConfig[plotIndex][i].propertyTextFields[key].Text())
 				}
-				var nrgba color.NRGBA
-				c, ok := colornames.Map[strings.ToLower(strings.Replace(v.indicatorConfig[plotIndex][i].colorTextField.Text(), " ", "", -1))]
-				if ok {
-					// no alpha, simply assign.
-					nrgba = color.NRGBA(c)
-				}
 				for j := range v.indicatorConfig[plotIndex][i].IndicatorConfig.Colors {
+					var nrgba color.NRGBA
+					c, ok := colornames.Map[strings.ToLower(strings.Replace(v.indicatorConfig[plotIndex][i].colorTextFields[j].Text(), " ", "", -1))]
+					if ok {
+						// no alpha, simply assign.
+						nrgba = color.NRGBA(c)
+					}
 					v.indicatorConfig[plotIndex][i].IndicatorConfig.Colors[j] = nrgba
 				}
 			}
@@ -280,7 +284,14 @@ func (v *IndicatorsView) layoutConfigEntry(th *material.Theme, gtx layout.Contex
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Inset{Right: v.TextMargin, Left: v.TextMargin}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						return ind.colorTextField.Layout(gtx, th, "")
+						var flexTextFields []layout.FlexChild
+						for i := range ind.colorTextFields {
+							ctf := &ind.colorTextFields[i]
+							flexTextFields = append(flexTextFields, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return ctf.Layout(gtx, th, "")
+							}))
+						}
+						return layout.Flex{Axis: layout.Vertical}.Layout(gtx, flexTextFields...)
 					})
 				}),
 			)
