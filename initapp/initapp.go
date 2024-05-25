@@ -20,7 +20,6 @@ import (
 
 	"gioui.org/app"
 	"gioui.org/io/system"
-	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
@@ -120,7 +119,7 @@ func (a *InitApp) saveConfiguration() error {
 func (a *InitApp) Run(ctx context.Context) {
 	err := a.reloadConfiguration()
 	if err != nil || !a.hasEncryptedConfig {
-		a.uiState = StateNewPassword
+		a.uiState = StateConfirmLicense
 	} else if !a.licenseConfirmed { // either license was not confirmed, or encryption pw is missing
 		a.uiState = StateEnterPassword
 	} else {
@@ -154,7 +153,8 @@ func (a *InitApp) Run(ctx context.Context) {
 }
 
 func (a *InitApp) createWindows() {
-	a.initWindow = app.NewWindow(
+	a.initWindow = new(app.Window)
+	a.initWindow.Option(
 		app.Title(a.config.GetAppName()),
 		app.Size(unit.Dp(800), unit.Dp(600)),
 	)
@@ -166,9 +166,9 @@ func (a *InitApp) handleEvents(ctx context.Context) error {
 	th := widgets.NewDarkMaterialTheme()
 
 	for {
-		switch e := a.initWindow.NextEvent().(type) {
-		case system.FrameEvent:
-			gtx := layout.NewContext(&ops, e)
+		switch e := a.initWindow.Event().(type) {
+		case app.FrameEvent:
+			gtx := app.NewContext(&ops, e)
 			paint.Fill(gtx.Ops, th.Bg)
 			switch a.uiState {
 			case StateConfirmLicense:
@@ -198,7 +198,6 @@ func (a *InitApp) handleEvents(ctx context.Context) error {
 			case StateInitialSettings:
 				a.configView.Layout(th, gtx)
 				if a.configView.ConfirmClicked() {
-					a.licenseConfirmed = true
 					a.initWindow.Perform(system.ActionClose)
 				}
 			case StateEnterPassword:
@@ -214,19 +213,26 @@ func (a *InitApp) handleEvents(ctx context.Context) error {
 					if err != nil || !a.licenseConfirmed {
 						a.pwRequesterView.SetErrorNote("invalid password")
 					} else {
-						a.initWindow.Perform(system.ActionClose)
+						if len(a.broker) == 0 {
+							a.uiState = StateInitialSettings
+						} else {
+							a.initWindow.Perform(system.ActionClose)
+						}
 					}
 				}
 			}
 
 			e.Frame(gtx.Ops)
-		case system.DestroyEvent:
+		case app.DestroyEvent:
 			return e.Err
 		}
 	}
 }
 
 func (a *InitApp) terminate() {
+	if a.uiState == StateInitialSettings {
+		a.licenseConfirmed = true
+	}
 	err := a.saveConfiguration()
 	if err != nil {
 		log.Printf("error saving configuration: %v", err)

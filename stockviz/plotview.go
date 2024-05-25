@@ -19,12 +19,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"gioui.org/io/key"
 	"gioui.org/layout"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"gioui.org/x/component"
-	"gioui.org/x/eventx"
 )
 
 type PlotView struct {
@@ -242,10 +240,9 @@ func (v *PlotView) handleInput(ctx context.Context, gtx layout.Context) {
 func (v *PlotView) Layout(ctx context.Context, gtx layout.Context, th *material.Theme, priceData *PriceData) (layout.Dimensions, bool) {
 	refreshQuote := false
 	gtx.Constraints.Min = image.Point{} // in order to be able to calculate widget width
-	var spy *eventx.Spy
-	spy, gtx = eventx.Enspy(gtx)
 
 	v.handleInput(ctx, gtx)
+	v.searchField.HandleInput(gtx)
 
 	v.contextMenu.Options = []func(gtx layout.Context) layout.Dimensions{
 		component.MenuItem(th, v.settingsMenuItem, "Settings").Layout,
@@ -360,24 +357,6 @@ func (v *PlotView) Layout(ctx context.Context, gtx layout.Context, th *material.
 		},
 		),
 	)
-
-	// TODO This is a hack, this code should be in searchfield.go, but currently cannot be placed there
-	// due to gio not supporting event handling in a different way.
-	// TODO spy should later be replaced by custom editor key handling.
-	for _, evs := range spy.AllEvents() {
-		for _, ev := range evs.Items {
-			if e, ok := ev.(key.Event); ok {
-				if e.State == key.Press {
-					v.searchField.HandleKey(e.Name)
-				}
-			} else if e, ok := ev.(key.FocusEvent); ok {
-				v.searchField.HandleFocus(e.Focus)
-			}
-		}
-	}
-	// TODO Currently, we need to handle search field input after spying. This should be done before layout.
-	v.searchField.HandleInput(gtx)
-
 	return layout.Dimensions{Size: gtx.Constraints.Max}, refreshQuote
 }
 

@@ -408,7 +408,8 @@ func (a *StockApp) createWindows() {
 		size.X = 1280
 		size.Y = 1024
 	}
-	a.windows[0].win = app.NewWindow(
+	a.windows[0].win = new(app.Window)
+	a.windows[0].win.Option(
 		app.Title(a.config.GetAppName()),
 		app.Size(size.X, size.Y),
 		// TODO not working on mac app.Maximized.Option(),
@@ -422,11 +423,11 @@ func (a *StockApp) handleEvents(ctx context.Context) error {
 
 	// TODO support multiple windows
 	for {
-		event := a.windows[0].win.NextEvent()
+		event := a.windows[0].win.Event()
 		giohyperlink.ListenEvents(event)
 		switch e := event.(type) {
-		case system.FrameEvent:
-			gtx := layout.NewContext(&ops, e)
+		case app.FrameEvent:
+			gtx := app.NewContext(&ops, e)
 			paint.Fill(gtx.Ops, a.matTheme.Bg)
 			switch a.uiState {
 			case StatePlot:
@@ -445,7 +446,7 @@ func (a *StockApp) handleEvents(ctx context.Context) error {
 				}
 			}
 			e.Frame(gtx.Ops)
-		case system.DestroyEvent:
+		case app.DestroyEvent:
 			return e.Err
 		}
 	}

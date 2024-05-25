@@ -254,7 +254,7 @@ func (v *IndicatorsView) handleInput(gtx layout.Context, plotIndex int) {
 		}
 	}
 	if invalidate {
-		op.InvalidateOp{}.Add(gtx.Ops)
+		gtx.Execute(op.InvalidateCmd{})
 	}
 }
 

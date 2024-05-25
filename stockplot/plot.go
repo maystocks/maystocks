@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"gioui.org/f32"
+	"gioui.org/io/event"
 	"gioui.org/io/key"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
@@ -285,7 +286,6 @@ func (plot *Plot) InitializeFrame(gtx layout.Context, r candles.CandleResolution
 		s.frame.projection = plot.calcProjectionVars(i)
 	}
 	plot.handleInput(gtx)
-	plot.registerInputOps(gtx.Ops)
 	return
 }
 
@@ -298,127 +298,147 @@ func (plot *Plot) GetSubPlotData() []SubPlotData {
 	return data
 }
 
-func (plot *Plot) registerInputOps(ops *op.Ops) {
+func (plot *Plot) handleInput(gtx layout.Context) {
 	xAxisArea := clip.Rect(image.Rectangle{
 		Min: image.Point{X: plot.frame.axesMarginPxMin.X, Y: plot.frame.totalPxSize.Y - plot.frame.axesMarginPxMax.Y - plot.frame.textSizePx.Y},
-		Max: image.Point{X: plot.frame.totalPxSize.X - plot.frame.axesMarginPxMax.X - plot.frame.textSizePx.X, Y: plot.frame.totalPxSize.Y}}).Push(ops)
-	pointer.InputOp{
-		Tag:   PlotTag{a: EventAreaXaxis, p: plot},
-		Kinds: pointer.Press | pointer.Release | pointer.Drag,
-	}.Add(ops)
-	pointer.CursorColResize.Add(ops)
+		Max: image.Point{X: plot.frame.totalPxSize.X - plot.frame.axesMarginPxMax.X - plot.frame.textSizePx.X, Y: plot.frame.totalPxSize.Y}}).Push(gtx.Ops)
+	event.Op(gtx.Ops, PlotTag{a: EventAreaXaxis, p: plot})
+	for {
+		event, ok := gtx.Event(pointer.Filter{
+			Target: PlotTag{a: EventAreaXaxis, p: plot},
+			Kinds:  pointer.Press | pointer.Release | pointer.Drag,
+		})
+		if !ok {
+			break
+		}
+		ev, ok := event.(pointer.Event)
+		if !ok {
+			continue
+		}
+		// X axis zooming
+		if ev.Kind == pointer.Press {
+			plot.pointerPressPos = ev.Position // TODO maybe support multiple pointers
+		} else if ev.Kind == pointer.Drag {
+			posDelta := plot.pointerPressPos.Sub(ev.Position)
+			dpDelta := gtx.Metric.PxToDp(int(posDelta.X)) / 5
+			if dpDelta != 0 {
+				plot.gridX = plot.gridX + dpDelta
+				if plot.gridX < MinGridDp {
+					plot.gridX = MinGridDp
+				}
+				plot.pointerPressPos = ev.Position
+				plot.optimiseGridX()
+				plot.frame.pxGridX = gtx.Dp(plot.gridX)
+			}
+		}
+	}
+
+	pointer.CursorColResize.Add(gtx.Ops)
 	if plot.requestFocus {
-		key.FocusOp{Tag: PlotTag{a: EventAreaXaxis, p: plot}}.Add(ops)
+		gtx.Execute(key.FocusCmd{Tag: PlotTag{a: EventAreaXaxis, p: plot}})
 		plot.requestFocus = false
 	}
 	xAxisArea.Pop()
 	// pointer input per subplot
 	for _, s := range plot.Sub {
-		subArea := clip.Rect(image.Rectangle{Min: s.frame.minPos, Max: s.frame.maxPos}).Push(ops)
-		pointer.InputOp{
-			Tag:   SubPlotTag{a: EventAreaPlot, s: s},
-			Kinds: pointer.Press | pointer.Drag | pointer.Scroll,
-			ScrollBounds: image.Rectangle{
-				Min: image.Point{
-					X: 0,
-					Y: math.MinInt,
+		subArea := clip.Rect(image.Rectangle{Min: s.frame.minPos, Max: s.frame.maxPos}).Push(gtx.Ops)
+		event.Op(gtx.Ops, SubPlotTag{a: EventAreaPlot, s: s})
+		for {
+			event, ok := gtx.Event(pointer.Filter{
+				Target: SubPlotTag{a: EventAreaPlot, s: s},
+				Kinds:  pointer.Press | pointer.Drag | pointer.Scroll,
+				ScrollBounds: image.Rectangle{
+					Min: image.Point{
+						X: 0,
+						Y: math.MinInt,
+					},
+					Max: image.Point{
+						X: 0,
+						Y: math.MaxInt,
+					},
 				},
-				Max: image.Point{
-					X: 0,
-					Y: math.MaxInt,
-				},
-			},
-		}.Add(ops)
+			})
+			if !ok {
+				break
+			}
+			ev, ok := event.(pointer.Event)
+			if !ok {
+				continue
+			}
+			plot.requestFocus = true
+			if ev.Kind == pointer.Press {
+				plot.pointerPressPos = ev.Position
+			} else if ev.Kind == pointer.Drag {
+				posDelta := plot.pointerPressPos.Sub(ev.Position)
+				plot.zeroValueX += plot.valueGridX / float64(plot.frame.pxGridX) * float64(posDelta.X)
+				if !s.fixedZeroValueY {
+					s.zeroValueY -= s.valueGridY / float64(s.frame.pxGridY) * float64(posDelta.Y)
+					if s.zeroValueY < 0 {
+						s.zeroValueY = 0
+					}
+				}
+				plot.pointerPressPos = ev.Position
+			} else if ev.Kind == pointer.Scroll {
+				var zoom unit.Dp
+				if ev.Scroll.Y < 0 {
+					zoom = -10
+				} else {
+					zoom = 10
+				}
+				plot.gridX += zoom
+				if plot.gridX < MinGridDp {
+					plot.gridX = MinGridDp
+				}
+				plot.optimiseGridX()
+				plot.frame.pxGridX = gtx.Dp(plot.gridX)
+			}
+		}
 		subArea.Pop()
 
 		yAxisArea := clip.Rect(image.Rectangle{
 			Min: image.Point{X: s.frame.maxPos.X, Y: s.frame.minPos.Y},
-			Max: s.frame.basePos.Add(s.frame.totalPxSize)}).Push(ops)
-		pointer.InputOp{
-			Tag:   SubPlotTag{a: EventAreaYaxis, s: s},
-			Kinds: pointer.Press | pointer.Release | pointer.Drag,
-		}.Add(ops)
-		pointer.CursorRowResize.Add(ops)
+			Max: s.frame.basePos.Add(s.frame.totalPxSize)}).Push(gtx.Ops)
+
+		event.Op(gtx.Ops, SubPlotTag{a: EventAreaYaxis, s: s})
+		for {
+			event, ok := gtx.Event(pointer.Filter{
+				Target: SubPlotTag{a: EventAreaYaxis, s: s},
+				Kinds:  pointer.Press | pointer.Drag,
+				ScrollBounds: image.Rectangle{
+					Min: image.Point{
+						X: 0,
+						Y: math.MinInt,
+					},
+					Max: image.Point{
+						X: 0,
+						Y: math.MaxInt,
+					},
+				},
+			})
+			if !ok {
+				break
+			}
+			ev, ok := event.(pointer.Event)
+			if !ok {
+				continue
+			}
+			plot.requestFocus = true
+			if ev.Kind == pointer.Press {
+				plot.pointerPressPos = ev.Position
+			} else if ev.Kind == pointer.Drag {
+				posDelta := plot.pointerPressPos.Sub(ev.Position)
+				s.gridY += gtx.Metric.PxToDp(int(posDelta.Y)) / 2
+				if s.gridY < MinGridDp {
+					s.gridY = MinGridDp
+				}
+				plot.pointerPressPos = ev.Position
+				s.frame.pxGridY = gtx.Dp(s.gridY)
+				s.nextValueRangeY = s.calcYvalueRange()
+				gtx.Execute(op.InvalidateCmd{})
+			}
+		}
+		pointer.CursorRowResize.Add(gtx.Ops)
 		yAxisArea.Pop()
-	}
-}
-
-func (plot *Plot) handleInput(gtx layout.Context) {
-	// X axis zooming
-	for _, gtxEvent := range gtx.Events(PlotTag{a: EventAreaXaxis, p: plot}) {
-		switch e := gtxEvent.(type) {
-		case pointer.Event:
-			if e.Kind == pointer.Press {
-				plot.pointerPressPos = e.Position // TODO maybe support multiple pointers
-			} else if e.Kind == pointer.Drag {
-				posDelta := plot.pointerPressPos.Sub(e.Position)
-				dpDelta := gtx.Metric.PxToDp(int(posDelta.X)) / 5
-				if dpDelta != 0 {
-					plot.gridX = plot.gridX + dpDelta
-					if plot.gridX < MinGridDp {
-						plot.gridX = MinGridDp
-					}
-					plot.pointerPressPos = e.Position
-					plot.optimiseGridX()
-					plot.frame.pxGridX = gtx.Dp(plot.gridX)
-				}
-			}
-		}
-	}
-	// subplot specific events
-	for _, s := range plot.Sub {
-		for _, gtxEvent := range gtx.Events(SubPlotTag{a: EventAreaPlot, s: s}) {
-			switch e := gtxEvent.(type) {
-			case pointer.Event:
-				plot.requestFocus = true
-				if e.Kind == pointer.Press {
-					plot.pointerPressPos = e.Position
-				} else if e.Kind == pointer.Drag {
-					posDelta := plot.pointerPressPos.Sub(e.Position)
-					plot.zeroValueX += plot.valueGridX / float64(plot.frame.pxGridX) * float64(posDelta.X)
-					if !s.fixedZeroValueY {
-						s.zeroValueY -= s.valueGridY / float64(s.frame.pxGridY) * float64(posDelta.Y)
-						if s.zeroValueY < 0 {
-							s.zeroValueY = 0
-						}
-					}
-					plot.pointerPressPos = e.Position
-				} else if e.Kind == pointer.Scroll {
-					var zoom unit.Dp
-					if e.Scroll.Y < 0 {
-						zoom = -10
-					} else {
-						zoom = 10
-					}
-					plot.gridX += zoom
-					if plot.gridX < MinGridDp {
-						plot.gridX = MinGridDp
-					}
-					plot.optimiseGridX()
-					plot.frame.pxGridX = gtx.Dp(plot.gridX)
-				}
-			}
-		}
-
-		for _, gtxEvent := range gtx.Events(SubPlotTag{a: EventAreaYaxis, s: s}) {
-			switch e := gtxEvent.(type) {
-			case pointer.Event:
-				plot.requestFocus = true
-				if e.Kind == pointer.Press {
-					plot.pointerPressPos = e.Position
-				} else if e.Kind == pointer.Drag {
-					posDelta := plot.pointerPressPos.Sub(e.Position)
-					s.gridY += gtx.Metric.PxToDp(int(posDelta.Y)) / 2
-					if s.gridY < MinGridDp {
-						s.gridY = MinGridDp
-					}
-					plot.pointerPressPos = e.Position
-					s.frame.pxGridY = gtx.Dp(s.gridY)
-					s.nextValueRangeY = s.calcYvalueRange()
-					op.InvalidateOp{}.Add(gtx.Ops)
-				}
-			}
-		}
 	}
 }
 

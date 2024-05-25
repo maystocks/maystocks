@@ -42,6 +42,7 @@ type SearchField struct {
 	enteredSearchTextMutex   sync.Mutex
 	firstVisibleIndex        int
 	lastVisibleIndex         int
+	focusHandled             bool
 }
 
 func NewSearchField(text string) *SearchField {
@@ -95,16 +96,20 @@ func (f *SearchField) EnteredSearchText() (string, bool) {
 }
 
 func (f *SearchField) handleEvents(gtx layout.Context) {
-	for _, evt := range f.textField.Events() {
+	for {
+		evt, ok := f.textField.Editor.Update(gtx)
+		if !ok {
+			break
+		}
 		switch evt := evt.(type) {
 		case widget.ChangeEvent:
 			t := f.textField.Text()
 			// SetText also may fire this event. We do not want that.
 			if f.ignoreChangeText != "" && f.ignoreChangeText == t {
-				f.textField.Focus()
+				gtx.Execute(key.FocusCmd{Tag: &f.textField.Editor})
 				f.ignoreChangeText = ""
 			} else {
-				f.textField.Focus()
+				gtx.Execute(key.FocusCmd{Tag: &f.textField.Editor})
 				if t == "" {
 					f.resetItems()
 				}
@@ -131,16 +136,6 @@ func (f *SearchField) submitText(t string) {
 	f.submittedSearchTextMutex.Unlock()
 }
 
-func (f *SearchField) registerInputOps(gtx layout.Context) {
-	// non-default keyboard input
-	if f.textField.Focused() {
-		key.InputOp{
-			Tag:  f,
-			Keys: key.NameUpArrow + "|" + key.NameDownArrow + "|" + key.NameEscape,
-		}.Add(gtx.Ops)
-	}
-}
-
 func (f *SearchField) resetItems() {
 	f.items = nil
 	f.selectedIndex = -1
@@ -164,18 +159,36 @@ func (f *SearchField) updateTextFromSelection() {
 
 // Call from same goroutine as Layout.
 func (f *SearchField) HandleInput(gtx layout.Context) {
-	for _, gtxEvent := range gtx.Events(f) {
-		switch e := gtxEvent.(type) {
-		case key.Event:
-			if e.State == key.Press {
-				f.HandleKey(e.Name)
-			}
+	for {
+		event, ok := gtx.Event(
+			key.Filter{
+				Focus: &f.textField.Editor,
+				Name:  key.NameUpArrow,
+			},
+			key.Filter{
+				Focus: &f.textField.Editor,
+				Name:  key.NameDownArrow,
+			},
+			key.Filter{
+				Focus: &f.textField.Editor,
+				Name:  key.NameEscape,
+			},
+		)
+		if !ok {
+			break
+		}
+		ev, ok := event.(key.Event)
+		if !ok {
+			continue
+		}
+		if ev.State == key.Press {
+			f.HandleKey(ev.Name)
 		}
 	}
 }
 
 // Call from same goroutine as Layout.
-func (f *SearchField) HandleKey(name string) {
+func (f *SearchField) HandleKey(name key.Name) {
 	switch name {
 	case key.NameUpArrow:
 		if len(f.items) == 0 {
@@ -214,16 +227,15 @@ func (f *SearchField) HandleKey(name string) {
 	}
 }
 
-// Call from same goroutine as Layout.
-func (f *SearchField) HandleFocus(focus bool) {
-	if focus {
-		f.textField.SetCaret(len(f.textField.Text()), 0)
-	}
-}
-
 func (f *SearchField) Layout(gtx layout.Context, th *material.Theme, pth *PlotTheme) layout.Dimensions {
 	f.handleEvents(gtx)
-	f.registerInputOps(gtx)
+	focused := gtx.Focused(&f.textField.Editor)
+	if focused && !f.focusHandled {
+		f.focusHandled = true
+		// select all text
+		f.textField.SetCaret(len(f.textField.Text()), 0)
+	}
+	f.focusHandled = focused
 	var nextMinItemSizeX int
 	var textFieldDims layout.Dimensions
 
@@ -306,7 +318,7 @@ func (f *SearchField) Layout(gtx layout.Context, th *material.Theme, pth *PlotTh
 		}),
 	}
 
-	expanded := f.textField.Focused() && len(f.items) > 0
+	expanded := gtx.Focused(&f.textField.Editor) && len(f.items) > 0
 
 	var macro op.MacroOp
 	if expanded {
@@ -338,7 +350,7 @@ func (f *SearchField) Layout(gtx layout.Context, th *material.Theme, pth *PlotTh
 	f.nextItemsMutex.Unlock()
 	if f.minItemSizeX != nextMinItemSizeX {
 		f.minItemSizeX = nextMinItemSizeX
-		op.InvalidateOp{}.Add(gtx.Ops)
+		gtx.Execute(op.InvalidateCmd{})
 	}
 	return textFieldDims
 }

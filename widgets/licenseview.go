@@ -5,9 +5,11 @@ package widgets
 
 import (
 	"image/color"
+	"io"
 	"strings"
 
 	"gioui.org/io/clipboard"
+	"gioui.org/io/event"
 	"gioui.org/io/key"
 	"gioui.org/layout"
 	"gioui.org/unit"
@@ -73,25 +75,47 @@ func (v *LicenseView) Layout(th *material.Theme, gtx layout.Context) layout.Dime
 
 	// Workaround: Layout each line. We also need custom pageup/pagedown handlers.
 	// Hopefully, all of this can later be replaced by an editor with an integrated scrollbar.
-	key.InputOp{
-		Tag:  v,
-		Keys: key.NamePageUp + "|" + key.NamePageDown + "|" + key.NameUpArrow + "|" + key.NameDownArrow,
-	}.Add(gtx.Ops)
+	event.Op(gtx.Ops, v)
 
-	for _, gtxEvent := range gtx.Events(v) {
-		switch e := gtxEvent.(type) {
-		case key.Event:
-			if e.State == key.Press {
-				switch e.Name {
-				case key.NamePageUp:
-					v.scrollPages(-1)
-				case key.NamePageDown:
-					v.scrollPages(1)
-				case key.NameUpArrow:
-					v.textList.ScrollBy(-1)
-				case key.NameDownArrow:
-					v.textList.ScrollBy(1)
-				}
+	for {
+		event, ok := gtx.Event(
+			key.FocusFilter{
+				Target: v,
+			},
+			key.Filter{
+				Focus: v,
+				Name:  key.NamePageUp,
+			},
+			key.Filter{
+				Focus: v,
+				Name:  key.NamePageDown,
+			},
+			key.Filter{
+				Focus: v,
+				Name:  key.NameUpArrow,
+			},
+			key.Filter{
+				Focus: v,
+				Name:  key.NameDownArrow,
+			},
+		)
+		if !ok {
+			break
+		}
+		ev, ok := event.(key.Event)
+		if !ok {
+			continue
+		}
+		if ev.State == key.Press {
+			switch ev.Name {
+			case key.NamePageUp:
+				v.scrollPages(-1)
+			case key.NamePageDown:
+				v.scrollPages(1)
+			case key.NameUpArrow:
+				v.textList.ScrollBy(-1)
+			case key.NameDownArrow:
+				v.textList.ScrollBy(1)
 			}
 		}
 	}
@@ -103,9 +127,11 @@ func (v *LicenseView) Layout(th *material.Theme, gtx layout.Context) layout.Dime
 		v.scrollPages(1)
 	}
 	if v.buttonClipboard.Clicked(gtx) {
-		clipboard.WriteOp{
-			Text: v.license,
-		}.Add(gtx.Ops)
+		gtx.Execute(
+			clipboard.WriteCmd{
+				Type: "application/text",
+				Data: io.NopCloser(strings.NewReader(v.license)),
+			})
 	}
 	if v.buttonCancel.Clicked(gtx) {
 		v.cancelled = true

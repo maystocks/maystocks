@@ -4,6 +4,7 @@
 package widgets
 
 import (
+	"gioui.org/io/key"
 	"gioui.org/layout"
 	"gioui.org/unit"
 	"gioui.org/widget"
@@ -86,9 +87,9 @@ func (v *PasswordCreatorView) submitPassword() {
 func (v *PasswordCreatorView) Layout(th *material.Theme, gtx layout.Context) layout.Dimensions {
 	if !v.focusUpdated {
 		if v.requestExisting {
-			v.existingPwTextField.Focus()
+			gtx.Execute(key.FocusCmd{Tag: &v.existingPwTextField.Editor})
 		} else {
-			v.newPwTextField.Focus()
+			gtx.Execute(key.FocusCmd{Tag: &v.newPwTextField.Editor})
 		}
 		v.focusUpdated = true
 	}
@@ -98,23 +99,35 @@ func (v *PasswordCreatorView) Layout(th *material.Theme, gtx layout.Context) lay
 	if v.buttonCancel.Clicked(gtx) || v.buttonClose.Clicked(gtx) {
 		v.cancelled = true
 	}
-	for _, evt := range v.existingPwTextField.Events() {
+	for {
+		evt, ok := v.existingPwTextField.Editor.Update(gtx)
+		if !ok {
+			break
+		}
 		switch evt.(type) {
 		case widget.ChangeEvent:
 			v.noteNewPw = ""
 		case widget.SubmitEvent:
-			v.newPwTextField.Focus()
+			gtx.Execute(key.FocusCmd{Tag: &v.newPwTextField.Editor})
 		}
 	}
-	for _, evt := range v.newPwTextField.Events() {
+	for {
+		evt, ok := v.newPwTextField.Editor.Update(gtx)
+		if !ok {
+			break
+		}
 		switch evt.(type) {
 		case widget.ChangeEvent:
 			v.noteNewPw = ""
 		case widget.SubmitEvent:
-			v.newPw2ndTextField.Focus()
+			gtx.Execute(key.FocusCmd{Tag: &v.newPw2ndTextField.Editor})
 		}
 	}
-	for _, evt := range v.newPw2ndTextField.Events() {
+	for {
+		evt, ok := v.newPw2ndTextField.Editor.Update(gtx)
+		if !ok {
+			break
+		}
 		switch evt.(type) {
 		case widget.ChangeEvent:
 			v.noteNewPw = ""

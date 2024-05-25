@@ -498,7 +498,7 @@ func (sub *SubPlot) plotCandles(data *stockval.CandlePlotData, gtx layout.Contex
 			invalidate = true
 		}
 		if invalidate {
-			op.InvalidateOp{}.Add(gtx.Ops)
+			gtx.Execute(op.InvalidateCmd{})
 		}
 	}
 }
@@ -687,7 +687,7 @@ func (sub *SubPlot) autoZoomGenericY(maxYvalue float64, gtx layout.Context) {
 		// Use rounded value range because this is generic data.
 		sub.nextValueRangeY = sub.getValueRange(maxYvalue)
 		// Redraw this subplot with new value range settings.
-		op.InvalidateOp{}.Add(gtx.Ops)
+		gtx.Execute(op.InvalidateCmd{})
 	}
 }
 
@@ -791,6 +791,6 @@ func (sub *SubPlot) plotQuoteLine(quote stockval.QuoteData, gtx layout.Context, 
 		// Initially scroll to quote price if no other data is available.
 		sub.nextBaseValueY = p
 		sub.hasInitialQuoteY = true
-		op.InvalidateOp{}.Add(gtx.Ops)
+		gtx.Execute(op.InvalidateCmd{})
 	}
 }

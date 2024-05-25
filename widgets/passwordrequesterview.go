@@ -6,6 +6,7 @@ package widgets
 import (
 	"strings"
 
+	"gioui.org/io/key"
 	"gioui.org/layout"
 	"gioui.org/unit"
 	"gioui.org/widget"
@@ -39,6 +40,9 @@ func NewPasswordRequesterView() *PasswordRequesterView {
 		passwordTextField: component.TextField{
 			Editor: widget.Editor{Submit: true, SingleLine: true, MaxLen: 128, Mask: '·'},
 		},
+		resetTextField: component.TextField{
+			Editor: widget.Editor{SingleLine: true, MaxLen: 16},
+		},
 		Margin: DefaultMargin,
 	}
 	return &v
@@ -65,7 +69,7 @@ func (v *PasswordRequesterView) submitPassword() {
 
 func (v *PasswordRequesterView) Layout(th *material.Theme, gtx layout.Context) layout.Dimensions {
 	if !v.focusUpdated {
-		v.passwordTextField.Focus()
+		gtx.Execute(key.FocusCmd{Tag: &v.passwordTextField.Editor})
 		v.focusUpdated = true
 	}
 	if v.buttonContinue.Clicked(gtx) {
@@ -73,21 +77,25 @@ func (v *PasswordRequesterView) Layout(th *material.Theme, gtx layout.Context) l
 	}
 	if v.buttonReset.Clicked(gtx) {
 		v.resetRequested = true
-		v.resetTextField.Focus()
+		gtx.Execute(key.FocusCmd{Tag: &v.resetTextField.Editor})
 	}
 	if v.buttonCancelReset.Clicked(gtx) {
 		v.resetRequested = false
-		v.passwordTextField.Focus()
+		gtx.Execute(key.FocusCmd{Tag: &v.passwordTextField.Editor})
 	}
 	if v.buttonConfirmReset.Clicked(gtx) {
 		if strings.EqualFold(v.resetTextField.Text(), "reset") {
 			v.confirmedPassword = ""
 			v.confirmed = true
 		} else {
-			v.resetTextField.Focus()
+			gtx.Execute(key.FocusCmd{Tag: &v.resetTextField.Editor})
 		}
 	}
-	for _, evt := range v.passwordTextField.Events() {
+	for {
+		evt, ok := v.passwordTextField.Editor.Update(gtx)
+		if !ok {
+			break
+		}
 		switch evt.(type) {
 		case widget.ChangeEvent:
 			v.note = ""

@@ -59,7 +59,7 @@ func (d *DropDown) Layout(th *material.Theme, gtx layout.Context) layout.Dimensi
 			d.toggled = false
 		}
 		d.menu.Options = append(d.menu.Options, component.MenuItem(th, m.ItemButton, m.Text).Layout)
-		op.InvalidateOp{}.Add(gtx.Ops)
+		gtx.Execute(op.InvalidateCmd{})
 	}
 	if d.button.Clicked(gtx) {
 		d.toggled = !d.toggled
@@ -86,7 +86,7 @@ func (d *DropDown) Layout(th *material.Theme, gtx layout.Context) layout.Dimensi
 				}),
 			)
 		})}
-	focused := d.button.Focused()
+	focused := gtx.Focused(&d.button)
 	if !focused {
 		d.toggled = false
 	}
