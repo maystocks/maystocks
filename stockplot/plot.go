@@ -345,18 +345,9 @@ func (plot *Plot) handleInput(gtx layout.Context) {
 		event.Op(gtx.Ops, SubPlotTag{a: EventAreaPlot, s: s})
 		for {
 			event, ok := gtx.Event(pointer.Filter{
-				Target: SubPlotTag{a: EventAreaPlot, s: s},
-				Kinds:  pointer.Press | pointer.Drag | pointer.Scroll,
-				ScrollBounds: image.Rectangle{
-					Min: image.Point{
-						X: 0,
-						Y: math.MinInt,
-					},
-					Max: image.Point{
-						X: 0,
-						Y: math.MaxInt,
-					},
-				},
+				Target:  SubPlotTag{a: EventAreaPlot, s: s},
+				Kinds:   pointer.Press | pointer.Drag | pointer.Scroll,
+				ScrollY: pointer.ScrollRange{Min: math.MinInt, Max: math.MaxInt},
 			})
 			if !ok {
 				break
@@ -402,18 +393,9 @@ func (plot *Plot) handleInput(gtx layout.Context) {
 		event.Op(gtx.Ops, SubPlotTag{a: EventAreaYaxis, s: s})
 		for {
 			event, ok := gtx.Event(pointer.Filter{
-				Target: SubPlotTag{a: EventAreaYaxis, s: s},
-				Kinds:  pointer.Press | pointer.Drag,
-				ScrollBounds: image.Rectangle{
-					Min: image.Point{
-						X: 0,
-						Y: math.MinInt,
-					},
-					Max: image.Point{
-						X: 0,
-						Y: math.MaxInt,
-					},
-				},
+				Target:  SubPlotTag{a: EventAreaYaxis, s: s},
+				Kinds:   pointer.Press | pointer.Drag,
+				ScrollY: pointer.ScrollRange{Min: math.MinInt, Max: math.MaxInt},
 			})
 			if !ok {
 				break

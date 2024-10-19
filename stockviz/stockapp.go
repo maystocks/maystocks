@@ -412,21 +412,25 @@ func (a *StockApp) createWindows() {
 	a.windows[0].win.Option(
 		app.Title(a.config.GetAppName()),
 		app.Size(size.X, size.Y),
-		// TODO not working on mac app.Maximized.Option(),
-		//app.Fullscreen.Option(),
+		// Not working on mac: app.Maximized.Option(),
 	)
-	a.windows[0].win.Perform(system.ActionMaximize)
 }
 
 func (a *StockApp) handleEvents(ctx context.Context) error {
 	var ops op.Ops
-
+	firstFrame := true
 	// TODO support multiple windows
 	for {
 		event := a.windows[0].win.Event()
 		giohyperlink.ListenEvents(event)
 		switch e := event.(type) {
 		case app.FrameEvent:
+			if firstFrame {
+				// Maximize does not work during window creation on MacOS.
+				// Therefore it is executed in first frame.
+				a.windows[0].win.Perform(system.ActionMaximize)
+				firstFrame = false
+			}
 			gtx := app.NewContext(&ops, e)
 			paint.Fill(gtx.Ops, a.matTheme.Bg)
 			switch a.uiState {
@@ -612,17 +616,6 @@ func (a *StockApp) AddPlot(ctx context.Context, plotData plotData, appTradingUrl
 			Text:              plotData.Entry.Symbol,
 			UnambiguousLookup: true,
 		}
-		// Test Trade
-		/*tradeRequest := stockapi.TradeRequest{
-			Asset:         entry,
-			Quantity:      new(decimal.Big).SetUint64(10),
-			Type:          stockapi.OrderTypeLimit,
-			Sell:          true,
-			LimitPrice:    new(decimal.Big).SetUint64(128),
-			TimeInForce:   stockapi.OrderTimeInForceDay,
-			ExtendedHours: true,
-		}
-		brokerData.tradeRequestChan <- tradeRequest*/
 	}
 }
 
