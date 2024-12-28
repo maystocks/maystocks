@@ -260,7 +260,7 @@ func getStockCandleResultMock(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(reply)) // ignore errors, test will fail anyway in case Write fails
 }
 
-func getSymbolsMock(w http.ResponseWriter, r *http.Request) {
+func getStockSymbolsMock(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	reply := `[
 	{
@@ -273,6 +273,19 @@ func getSymbolsMock(w http.ResponseWriter, r *http.Request) {
 		  "type": "Common Stock"
 		}
 	  ]`
+	_, _ = w.Write([]byte(reply)) // ignore errors, test will fail anyway in case Write fails
+}
+
+func getCryptoSymbolsMock(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	reply := `[
+	{
+		  "description": "Binance ETHBTC",
+		  "displaySymbol": "ETH/BTC",
+		  "symbol": "ETHBTC"
+		}
+	  ]`
+
 	_, _ = w.Write([]byte(reply)) // ignore errors, test will fail anyway in case Write fails
 }
 
@@ -325,7 +338,8 @@ func newFinnhubMock(t *testing.T) *httptest.Server {
 	handler := http.NewServeMux()
 	handler.HandleFunc("/quote", getQuoteResultMock)
 	handler.HandleFunc("/stock/candle", getStockCandleResultMock)
-	handler.HandleFunc("/stock/symbol", getSymbolsMock)
+	handler.HandleFunc("/stock/symbol", getStockSymbolsMock)
+	handler.HandleFunc("/crypto/symbol", getCryptoSymbolsMock)
 
 	srv := httptest.NewServer(handler)
 	t.Cleanup(func() { srv.Close() })

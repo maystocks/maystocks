@@ -82,7 +82,7 @@ func (c *localAssetCache) initSymbolCache(ctx context.Context, req func(ctx cont
 	if cachedSymbols != nil {
 		return cachedSymbols, nil
 	}
-	log.Printf("requesting %s stock symbols...", c.broker)
+	log.Printf("requesting %s symbols...", c.broker)
 	symbols, err := req(ctx)
 	if err != nil {
 		return nil, err

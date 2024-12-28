@@ -244,15 +244,24 @@ func (rq *finnhubBroker) runRequest(ctx context.Context, cmd string, query url.V
 	return resp, nil
 }
 
-func mapSymbolData(s stockSymbol) stockval.AssetData {
+func mapSymbolData(s stockSymbol, c stockval.AssetClass) stockval.AssetData {
+	// finnhub uses different crypto symbols than alpaca.
+	// Therefore, we are using DisplaySymbol for crypto, which is the same as the alpaca symbol.
+	var symbol string
+	if c == stockval.AssetClassCrypto && len(s.DisplaySymbol) > 0 {
+		symbol = s.DisplaySymbol
+	} else {
+		symbol = s.Symbol
+	}
 	return stockval.AssetData{
 		Figi:                  s.Figi,
-		Symbol:                s.Symbol,
+		Symbol:                symbol,
 		CompanyName:           s.Description,
 		Mic:                   s.Mic,
 		Currency:              "USD",
 		CompanyNameNormalized: stockval.NormalizeAssetName(s.Description),
 		Tradable:              false,
+		Class:                 c,
 	}
 }
 
@@ -266,21 +275,38 @@ func (rq *finnhubBroker) FindAsset(ctx context.Context, entry <-chan stockapi.Se
 	go rq.figiSearchTool.FindAsset(ctx, figiRequestChan, figiResponseChan)
 
 	symbols := rq.cache.GetAssetList(ctx, func(ctx context.Context) ([]stockval.AssetData, error) {
-		query := make(url.Values)
-		query.Add("exchange", stockval.DefaultExchange)
-		resp, err := rq.runRequest(ctx, "/stock/symbol", query)
+		equityQuery := make(url.Values)
+		equityQuery.Add("exchange", stockval.DefaultEquityExchange)
+		equityResp, err := rq.runRequest(ctx, "/stock/symbol", equityQuery)
 		if err != nil {
 			return nil, err
 		}
-		defer resp.Body.Close()
+		defer equityResp.Body.Close()
 
-		var symbols []stockSymbol
-		if err = webclient.ParseJsonResponse(resp, &symbols); err != nil {
+		var equitySymbols []stockSymbol
+		if err = webclient.ParseJsonResponse(equityResp, &equitySymbols); err != nil {
 			return nil, err
 		}
-		assetData := make([]stockval.AssetData, 0, len(symbols))
-		for _, s := range symbols {
-			assetData = append(assetData, mapSymbolData(s))
+
+		cryptoQuery := make(url.Values)
+		cryptoQuery.Add("exchange", stockval.DefaultCryptoExchange)
+		cryptoResp, err := rq.runRequest(ctx, "/crypto/symbol", cryptoQuery)
+		if err != nil {
+			return nil, err
+		}
+		defer cryptoResp.Body.Close()
+
+		var cryptoSymbols []stockSymbol
+		if err = webclient.ParseJsonResponse(cryptoResp, &cryptoSymbols); err != nil {
+			return nil, err
+		}
+
+		assetData := make([]stockval.AssetData, 0, len(equitySymbols)+len(cryptoSymbols))
+		for _, s := range equitySymbols {
+			assetData = append(assetData, mapSymbolData(s, stockval.AssetClassEquity))
+		}
+		for _, s := range cryptoSymbols {
+			assetData = append(assetData, mapSymbolData(s, stockval.AssetClassCrypto))
 		}
 		return assetData, nil
 	})

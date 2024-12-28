@@ -8,24 +8,22 @@ import (
 	"regexp"
 	"strings"
 	"sync/atomic"
-	"time"
 	"unsafe"
 
 	"gioui.org/unit"
-	"github.com/ericlagergren/decimal"
 )
 
-const DefaultExchange = "US" // TODO support other countries
+const DefaultEquityExchange = "US" // TODO support other countries
+const DefaultCryptoExchange = "binance"
 
 var IsinRegex = regexp.MustCompile(`^([A-Z]{2})([A-Z0-9]{9})[0-9]$`)
 
-type AquisitionEntry struct {
-	Id            string
-	Figi          string
-	Quantity      int32
-	PurchasePrice *decimal.Big
-	PurchaseDate  time.Time
-}
+type AssetClass int
+
+const (
+	AssetClassEquity AssetClass = iota
+	AssetClassCrypto
+)
 
 type AssetData struct {
 	Figi                  string
@@ -34,8 +32,9 @@ type AssetData struct {
 	Currency              string
 	Mic                   string
 	CompanyName           string
-	CompanyNameNormalized string `yaml:"-"`
-	Tradable              bool   `yaml:",omitempty"`
+	CompanyNameNormalized string     `yaml:"-"`
+	Tradable              bool       `yaml:",omitempty"`
+	Class                 AssetClass `yaml:",omitempty"`
 }
 
 type PlotScaling struct {
@@ -46,7 +45,7 @@ type PlotScaling struct {
 // Limit display name size
 var displayNameRegex = regexp.MustCompile(`^.{0,48}`)
 
-var alphanumericRegex = regexp.MustCompile(`[^\p{L}\p{N} ]+`)
+var alphanumericRegex = regexp.MustCompile(`[^\p{L}\p{N}/ ]+`)
 
 func NormalizeAssetName(n string) string {
 	return strings.TrimSpace(strings.ToUpper(alphanumericRegex.ReplaceAllString(n, "")))

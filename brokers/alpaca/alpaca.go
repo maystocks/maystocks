@@ -317,12 +317,23 @@ func getRealtimeSubscribeCommand(s stockapi.RealtimeDataSubscription, entry stoc
 	}
 }
 
-func getAssetClassStr(exchange string) string {
+func getAssetClassStrFromExchange(exchange string) string {
 	switch exchange {
 	case "US":
 		return "us_equity"
 	default:
 		panic("unsupported exchange")
+	}
+}
+
+func getAssetClassFromStr(classStr string) stockval.AssetClass {
+	switch classStr {
+	case "us_equity":
+		return stockval.AssetClassEquity
+	case "crypto":
+		return stockval.AssetClassCrypto
+	default:
+		panic("unsupported asset class")
 	}
 }
 
@@ -334,6 +345,7 @@ func mapSymbolData(s asset) stockval.AssetData {
 		Currency:              "USD",
 		CompanyNameNormalized: stockval.NormalizeAssetName(s.Name),
 		Tradable:              s.Tradable,
+		Class:                 getAssetClassFromStr(s.Class),
 	}
 }
 
@@ -431,20 +443,37 @@ func (rq *alpacaBroker) FindAsset(ctx context.Context, entry <-chan stockapi.Sea
 	go rq.figiSearchTool.FindAsset(ctx, figiRequestChan, figiResponseChan)
 
 	symbols := rq.cache.GetAssetList(ctx, func(ctx context.Context) ([]stockval.AssetData, error) {
-		query := make(url.Values)
-		query.Add("asset_class", getAssetClassStr(stockval.DefaultExchange))
-		resp, err := rq.runRequest(ctx, "/assets", query, nil, requestTypeTradingGet)
+		equityQuery := make(url.Values)
+		equityQuery.Add("asset_class", getAssetClassStrFromExchange(stockval.DefaultEquityExchange))
+		equityResp, err := rq.runRequest(ctx, "/assets", equityQuery, nil, requestTypeTradingGet)
 		if err != nil {
 			return nil, err
 		}
-		defer resp.Body.Close()
+		defer equityResp.Body.Close()
 
-		var assets []asset
-		if err = webclient.ParseJsonResponse(resp, &assets); err != nil {
+		var equityAssets []asset
+		if err = webclient.ParseJsonResponse(equityResp, &equityAssets); err != nil {
 			return nil, err
 		}
-		assetData := make([]stockval.AssetData, 0, len(assets))
-		for _, s := range assets {
+
+		cryptoQuery := make(url.Values)
+		cryptoQuery.Add("asset_class", "crypto")
+		cryptoResp, err := rq.runRequest(ctx, "/assets", cryptoQuery, nil, requestTypeTradingGet)
+		if err != nil {
+			return nil, err
+		}
+		defer cryptoResp.Body.Close()
+
+		var cryptoAssets []asset
+		if err = webclient.ParseJsonResponse(cryptoResp, &cryptoAssets); err != nil {
+			return nil, err
+		}
+
+		assetData := make([]stockval.AssetData, 0, len(equityAssets)+len(cryptoAssets))
+		for _, s := range equityAssets {
+			assetData = append(assetData, mapSymbolData(s))
+		}
+		for _, s := range cryptoAssets {
 			assetData = append(assetData, mapSymbolData(s))
 		}
 		return assetData, nil
@@ -465,22 +494,26 @@ func (rq *alpacaBroker) FindAsset(ctx context.Context, entry <-chan stockapi.Sea
 		}
 		responseData := rq.queryAsset(ctx, symbols, entry)
 		if responseData.Error == nil {
+			// alpaca does not provide figi identifiers for their assets.
+			// This is really bad. The id returned by alpaca is a custom id (created by alpaca), which is
+			// pretty useless, given that we allow switching between brokers.
+			// We cannot use this. Therefore, we request a figi using openfigi, which is slow and may stall.
 			if entry.UnambiguousLookup {
-				// alpaca does not provide figi identifiers for their assets.
-				// This is really bad. The id returned by alpaca is a custom id (created by alpaca), which is
-				// pretty useless, given that we allow switching between brokers.
-				// We cannot use this. Therefore, we request a figi using openfigi, which is slow and may stall.
-				// TODO ask alpaca to provide figi identifiers!
-				figiRequestChan <- stockapi.SearchRequest{
-					RequestId:         entry.RequestId,
-					Text:              responseData.Result[0].Symbol,
-					UnambiguousLookup: true,
-				}
-				figiResponse := <-figiResponseChan
-				if figiResponse.Error == nil {
-					responseData.Result[0].Figi = figiResponse.Result[0].Figi
+				if responseData.Result[0].Class == stockval.AssetClassCrypto {
+					// Unfortunately, there are no figis for crypto. For these cases, we use the symbol name.
+					responseData.Result[0].Figi = responseData.Result[0].Symbol
 				} else {
-					responseData.Error = figiResponse.Error
+					figiRequestChan <- stockapi.SearchRequest{
+						RequestId:         entry.RequestId,
+						Text:              responseData.Result[0].Symbol,
+						UnambiguousLookup: true,
+					}
+					figiResponse := <-figiResponseChan
+					if figiResponse.Error == nil {
+						responseData.Result[0].Figi = figiResponse.Result[0].Figi
+					} else {
+						responseData.Error = figiResponse.Error
+					}
 				}
 			}
 		}

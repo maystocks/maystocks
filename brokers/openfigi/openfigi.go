@@ -135,7 +135,7 @@ func (rq *openFigiSearchTool) FindAsset(ctx context.Context, entry <-chan stocka
 func (rq *openFigiSearchTool) queryFigi(ctx context.Context, searchData stockapi.SearchRequest) stockapi.SearchResponse {
 	searchText := stockval.NormalizeAssetName(searchData.Text)
 	mappingFilters := mappingFilters{
-		ExchangeCode: stockval.DefaultExchange,
+		ExchangeCode: stockval.DefaultEquityExchange,
 		MarketSector: "Equity",
 	}
 

@@ -19,6 +19,7 @@ type AppConfig struct {
 
 type BrokerConfig struct {
 	DataUrl         string `yaml:",omitempty"`
+	CryptoDataUrl   string `yaml:",omitempty"`
 	TradingUrl      string `yaml:",omitempty"`
 	PaperTradingUrl string `yaml:",omitempty"`
 	AppTradingUrl   string `yaml:",omitempty"`
@@ -56,6 +57,7 @@ func NewBrokerConfigMap() map[stockval.BrokerId]BrokerConfig {
 		},
 		"alpaca": {
 			DataUrl:                "https://data.alpaca.markets/v2",
+			CryptoDataUrl:          "https://data.alpaca.markets/v1beta3",
 			TradingUrl:             "https://api.alpaca.markets/v2",
 			PaperTradingUrl:        "https://paper-api.alpaca.markets/v2",
 			AppTradingUrl:          "https://app.alpaca.markets/trade/%s",
