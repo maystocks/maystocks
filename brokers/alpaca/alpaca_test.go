@@ -202,7 +202,6 @@ func TestTradeAsset(t *testing.T) {
 func getQuoteResultMock(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	reply := `{
-      "snapshots": {
         "` + testSymbol + `": {
 	    "latestTrade": {
 		  "t": "2021-05-11T20:00:00.435997104Z",
@@ -248,8 +247,7 @@ func getQuoteResultMock(w http.ResponseWriter, r *http.Request) {
 		  "v": 79569305
 		}
 	  }
-	}
-  }`
+    }`
 	_, _ = w.Write([]byte(reply)) // ignore errors, test will fail anyway in case Write fails
 }
 

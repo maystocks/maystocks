@@ -576,8 +576,15 @@ func (rq *alpacaBroker) querySymbolQuote(ctx context.Context, entry stockval.Ass
 	defer resp.Body.Close()
 
 	var assetSnapshots assetSnapshots
-	if err = webclient.ParseJsonResponse(resp, &assetSnapshots); err != nil {
-		return stockapi.QueryQuoteResponse{Figi: entry.Figi, Error: err}
+	if entry.Class == stockval.AssetClassEquity {
+		// Equity queries have a different response type.
+		if err = webclient.ParseJsonResponse(resp, &assetSnapshots.Snapshots); err != nil {
+			return stockapi.QueryQuoteResponse{Figi: entry.Figi, Error: err}
+		}
+	} else {
+		if err = webclient.ParseJsonResponse(resp, &assetSnapshots); err != nil {
+			return stockapi.QueryQuoteResponse{Figi: entry.Figi, Error: err}
+		}
 	}
 	snapshot, ok := assetSnapshots.Snapshots[entry.Symbol]
 	if !ok {
