@@ -55,7 +55,7 @@ func (d *CandleUpdater) Refresh() {
 		func(uiIndex int32, w candleTime) bool {
 			log.Printf("Requesting candle data %s %d.", d.Entry.Figi, d.CandleData.Resolution)
 			candlesRequestData := stockapi.CandlesRequest{
-				Stock:      d.Entry,
+				Asset:      d.Entry,
 				Resolution: d.CandleData.Resolution,
 				FromTime:   w.firstCandleTime,
 				ToTime:     w.lastCandleTime,

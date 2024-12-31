@@ -102,6 +102,9 @@ func (a *AppConfig) RemoveDefaults() {
 		if c.DataUrl == def.DataUrl {
 			c.DataUrl = ""
 		}
+		if c.CryptoDataUrl == def.CryptoDataUrl {
+			c.CryptoDataUrl = ""
+		}
 		if c.PaperTradingUrl == def.PaperTradingUrl {
 			c.PaperTradingUrl = ""
 		}
@@ -127,6 +130,9 @@ func (a *AppConfig) RestoreDefaults() {
 		def := defaultBrokerConfig[key]
 		if len(c.DataUrl) == 0 {
 			c.DataUrl = def.DataUrl
+		}
+		if len(c.CryptoDataUrl) == 0 {
+			c.CryptoDataUrl = def.CryptoDataUrl
 		}
 		if len(c.PaperTradingUrl) == 0 {
 			c.PaperTradingUrl = def.PaperTradingUrl

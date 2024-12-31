@@ -245,17 +245,18 @@ func (rq *finnhubBroker) runRequest(ctx context.Context, cmd string, query url.V
 }
 
 func mapSymbolData(s stockSymbol, c stockval.AssetClass) stockval.AssetData {
+	// There are no figis for crypto.
 	// finnhub uses different crypto symbols than alpaca.
-	// Therefore, we are using DisplaySymbol for crypto, which is the same as the alpaca symbol.
-	var symbol string
-	if c == stockval.AssetClassCrypto && len(s.DisplaySymbol) > 0 {
-		symbol = s.DisplaySymbol
+	// Therefore, we are using DisplaySymbol as figi for crypto, which is the same as the alpaca symbol.
+	var figi string
+	if c == stockval.AssetClassCrypto {
+		figi = s.DisplaySymbol
 	} else {
-		symbol = s.Symbol
+		figi = s.Figi
 	}
 	return stockval.AssetData{
-		Figi:                  s.Figi,
-		Symbol:                symbol,
+		Figi:                  figi,
+		Symbol:                s.Symbol,
 		CompanyName:           s.Description,
 		Mic:                   s.Mic,
 		Currency:              "USD",
@@ -387,7 +388,7 @@ func (rq *finnhubBroker) QueryCandles(ctx context.Context, request <-chan stocka
 	defer close(response)
 
 	for req := range request {
-		resp := rq.querySymbolCandles(ctx, req.Stock, req.Resolution, req.FromTime, req.ToTime)
+		resp := rq.querySymbolCandles(ctx, req.Asset, req.Resolution, req.FromTime, req.ToTime)
 		if resp.Error != nil {
 			rq.logger.Print(resp.Error)
 		}

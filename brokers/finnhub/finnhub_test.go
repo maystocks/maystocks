@@ -56,7 +56,7 @@ func TestQueryCandles(t *testing.T) {
 	assert.NoError(t, err)
 	go broker.QueryCandles(context.Background(), c, response)
 	c <- stockapi.CandlesRequest{
-		Stock:      stockval.AssetData{Figi: testFigi, Isin: testIsin, Symbol: testSymbol},
+		Asset:      stockval.AssetData{Figi: testFigi, Isin: testIsin, Symbol: testSymbol},
 		Resolution: candles.CandleOneMinute,
 		FromTime:   time.Unix(1664712905, 0),
 		ToTime:     time.Unix(1664799305, 0),
@@ -129,7 +129,7 @@ func TestQueryCandlesError(t *testing.T) {
 	assert.NoError(t, err)
 	go broker.QueryCandles(context.Background(), c, response)
 	c <- stockapi.CandlesRequest{
-		Stock:      stockval.AssetData{Figi: testFigi, Isin: testIsin, Symbol: testSymbol},
+		Asset:      stockval.AssetData{Figi: testFigi, Isin: testIsin, Symbol: testSymbol},
 		Resolution: candles.CandleOneMinute,
 		FromTime:   time.Unix(1684712905, 0), // use out of range time
 		ToTime:     time.Unix(1684799305, 0), // use out of range time

@@ -55,7 +55,7 @@ func TestQueryCandles(t *testing.T) {
 	assert.NoError(t, err)
 	go broker.QueryCandles(context.Background(), c, response)
 	c <- stockapi.CandlesRequest{
-		Stock:      stockval.AssetData{Figi: testFigi, Isin: testIsin, Symbol: testSymbol},
+		Asset:      stockval.AssetData{Figi: testFigi, Isin: testIsin, Symbol: testSymbol},
 		Resolution: candles.CandleOneMinute,
 		FromTime:   time.Unix(1664712905, 0),
 		ToTime:     time.Unix(1664799305, 0),
@@ -202,8 +202,9 @@ func TestTradeAsset(t *testing.T) {
 func getQuoteResultMock(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	reply := `{
-		"symbol": "` + testSymbol + `",
-		"latestTrade": {
+      "snapshots": {
+        "` + testSymbol + `": {
+	    "latestTrade": {
 		  "t": "2021-05-11T20:00:00.435997104Z",
 		  "x": "Q",
 		  "p": 125.91,
@@ -246,7 +247,9 @@ func getQuoteResultMock(w http.ResponseWriter, r *http.Request) {
 		  "c": 126.85,
 		  "v": 79569305
 		}
-	  }`
+	  }
+	}
+  }`
 	_, _ = w.Write([]byte(reply)) // ignore errors, test will fail anyway in case Write fails
 }
 
@@ -257,7 +260,9 @@ func getStockCandleResultMock(w http.ResponseWriter, r *http.Request) {
 	var reply string
 	if pageToken == "" {
 		reply = `{
-			"bars": [
+			"next_page_token": "QUFQTHxNfDIwMjItMDQtMTFUMDg6MDA6MDAuMDAwMDAwMDAwWg==",
+			"bars": {
+            "` + testSymbol + `": [
 			{
 				"t": "2022-04-11T08:00:00Z",
 				"o": 168.99,
@@ -268,13 +273,13 @@ func getStockCandleResultMock(w http.ResponseWriter, r *http.Request) {
 				"n": 206,
 				"vw": 169.233976
 			}
-			],
-			"symbol": "` + testSymbol + `",
-			"next_page_token": "QUFQTHxNfDIwMjItMDQtMTFUMDg6MDA6MDAuMDAwMDAwMDAwWg=="
+			]
+	        }
 		}`
 	} else {
 		reply = `{
-			"bars": [
+			"bars": {
+            "` + testSymbol + `": [
 			{
 				"t": "2022-04-12T08:00:00Z",
 				"o": 170.99,
@@ -285,8 +290,8 @@ func getStockCandleResultMock(w http.ResponseWriter, r *http.Request) {
 				"n": 208,
 				"vw": 171.233976
 			}
-			],
-			"symbol": "` + testSymbol + `"
+			]
+	        }
 		}`
 	}
 	_, _ = w.Write([]byte(reply)) // ignore errors, test will fail anyway in case Write fails
@@ -420,8 +425,8 @@ func webSocketHandler(w http.ResponseWriter, r *http.Request) {
 
 func newAlpacaMock(t *testing.T) *httptest.Server {
 	handler := http.NewServeMux()
-	handler.HandleFunc("/stocks/"+testSymbol+"/snapshot", getQuoteResultMock)
-	handler.HandleFunc("/stocks/"+testSymbol+"/bars", getStockCandleResultMock)
+	handler.HandleFunc("/stocks/snapshots", getQuoteResultMock)
+	handler.HandleFunc("/stocks/bars", getStockCandleResultMock)
 	handler.HandleFunc("/assets", getAssetsMock)
 	handler.HandleFunc("/orders", postOrderMock)
 

@@ -40,7 +40,7 @@ type SymbolSearchTool interface {
 }
 
 type CandlesRequest struct {
-	Stock      stockval.AssetData
+	Asset      stockval.AssetData
 	Resolution candles.CandleResolution
 	FromTime   time.Time
 	ToTime     time.Time

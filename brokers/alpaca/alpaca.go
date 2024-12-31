@@ -45,7 +45,7 @@ type alpacaBroker struct {
 type trade struct {
 	Timestamp  time.Time    `json:"t"`
 	Price      *decimal.Big `json:"p"`
-	Size       uint32       `json:"s"`
+	Size       *decimal.Big `json:"s"`
 	Exchange   string       `json:"x"`
 	ID         int64        `json:"i"`
 	Conditions []string     `json:"c"`
@@ -56,10 +56,10 @@ type trade struct {
 type quote struct {
 	Timestamp   time.Time    `json:"t"`
 	BidPrice    *decimal.Big `json:"bp"`
-	BidSize     uint32       `json:"bs"`
+	BidSize     *decimal.Big `json:"bs"`
 	BidExchange string       `json:"bx"`
 	AskPrice    *decimal.Big `json:"ap"`
-	AskSize     uint32       `json:"as"`
+	AskSize     *decimal.Big `json:"as"`
 	AskExchange string       `json:"ax"`
 	Conditions  []string     `json:"c"`
 	Tape        string       `json:"z"`
@@ -84,10 +84,13 @@ type snapshot struct {
 	PrevDailyBar *bar   `json:"prevDailyBar"`
 }
 
-type stockBars struct {
-	Symbol        string  `json:"symbol"`
-	NextPageToken *string `json:"next_page_token"`
-	Bars          []bar   `json:"bars"`
+type assetSnapshots struct {
+	Snapshots map[string]*snapshot `json:"snapshots"`
+}
+
+type assetBars struct {
+	NextPageToken *string          `json:"next_page_token"`
+	Bars          map[string][]bar `json:"bars"`
 }
 
 // This struct is a union type of all realtime messages.
@@ -203,7 +206,8 @@ type realtimeAuthCommand struct {
 type requestType int
 
 const (
-	requestTypeMarketData requestType = iota
+	requestTypeStockData requestType = iota
+	requestTypeCryptoData
 	requestTypeTradingGet
 	requestTypeTradingPost
 )
@@ -252,6 +256,16 @@ func getSideStr(sell bool) string {
 	} else {
 		return "buy"
 	}
+}
+
+func getDataRequestType(asset stockval.AssetData) requestType {
+	var reqType requestType
+	if asset.Class == stockval.AssetClassCrypto {
+		reqType = requestTypeCryptoData
+	} else {
+		reqType = requestTypeStockData
+	}
+	return reqType
 }
 
 func getOrderTypeStr(orderType stockapi.OrderType) string {
@@ -385,8 +399,11 @@ func (rq *alpacaBroker) createRequest(ctx context.Context, cmd string, body io.R
 	} else if t == requestTypeTradingPost {
 		url = rq.config.PaperTradingUrl
 		method = "POST"
+	} else if t == requestTypeCryptoData {
+		url = rq.config.CryptoDataUrl + "/crypto/us"
+		method = "GET"
 	} else {
-		url = rq.config.DataUrl
+		url = rq.config.DataUrl + "/stocks"
 		method = "GET"
 	}
 	req, err := http.NewRequestWithContext(ctx, method, url+cmd, body)
@@ -550,15 +567,21 @@ func (rq *alpacaBroker) QueryQuote(ctx context.Context, entry <-chan stockval.As
 }
 
 func (rq *alpacaBroker) querySymbolQuote(ctx context.Context, entry stockval.AssetData) stockapi.QueryQuoteResponse {
-	resp, err := rq.runRequest(ctx, "/stocks/"+entry.Symbol+"/snapshot", nil, nil, requestTypeMarketData)
+	query := make(url.Values)
+	query.Add("symbols", entry.Symbol)
+	resp, err := rq.runRequest(ctx, "/snapshots", query, nil, getDataRequestType(entry))
 	if err != nil {
 		return stockapi.QueryQuoteResponse{Figi: entry.Figi, Error: err}
 	}
 	defer resp.Body.Close()
 
-	var snapshot snapshot
-	if err = webclient.ParseJsonResponse(resp, &snapshot); err != nil {
+	var assetSnapshots assetSnapshots
+	if err = webclient.ParseJsonResponse(resp, &assetSnapshots); err != nil {
 		return stockapi.QueryQuoteResponse{Figi: entry.Figi, Error: err}
+	}
+	snapshot, ok := assetSnapshots.Snapshots[entry.Symbol]
+	if !ok {
+		return stockapi.QueryQuoteResponse{Figi: entry.Figi, Error: errors.New("missing snapshot in response")}
 	}
 
 	return stockapi.QueryQuoteResponse{
@@ -573,7 +596,7 @@ func (rq *alpacaBroker) QueryCandles(ctx context.Context, request <-chan stockap
 	defer close(response)
 
 	for req := range request {
-		resp := rq.querySymbolCandles(ctx, req.Stock, req.Resolution, req.FromTime, req.ToTime)
+		resp := rq.querySymbolCandles(ctx, req.Asset, req.Resolution, req.FromTime, req.ToTime)
 		if resp.Error != nil {
 			rq.logger.Print(resp.Error)
 		}
@@ -599,6 +622,7 @@ func (rq *alpacaBroker) querySymbolCandles(ctx context.Context, entry stockval.A
 
 	for hasNextPage {
 		query := make(url.Values)
+		query.Add("symbols", entry.Symbol)
 		query.Add("timeframe", getCandleResolutionStr(resolution))
 		// start/end time need to be truncated here, because otherwise alpaca will return
 		// error 422 for future dates.
@@ -612,20 +636,26 @@ func (rq *alpacaBroker) querySymbolCandles(ctx context.Context, entry stockval.A
 		if nextPageToken != "" {
 			query.Add("page_token", nextPageToken)
 		}
-		query.Add("adjustment", "all") // split & dividend adjustment
+		if entry.Class == stockval.AssetClassEquity {
+			query.Add("adjustment", "all") // split & dividend adjustment
+		}
 		query.Add("limit", "10000")
-		resp, err := rq.runRequest(ctx, "/stocks/"+entry.Symbol+"/bars", query, nil, requestTypeMarketData)
+		resp, err := rq.runRequest(ctx, "/bars", query, nil, getDataRequestType(entry))
 		if err != nil {
 			return stockapi.QueryCandlesResponse{Figi: entry.Figi, Error: err}
 		}
+		defer resp.Body.Close()
 
-		var stockBars stockBars
-		if err = webclient.ParseJsonResponse(resp, &stockBars); err != nil {
-			resp.Body.Close()
+		var assetBars assetBars
+		if err = webclient.ParseJsonResponse(resp, &assetBars); err != nil {
 			return stockapi.QueryCandlesResponse{Figi: entry.Figi, Error: err}
 		}
+		bars, ok := assetBars.Bars[entry.Symbol]
+		if !ok {
+			return stockapi.QueryCandlesResponse{Figi: entry.Figi, Error: errors.New("missing bars in response")}
+		}
 
-		for _, b := range stockBars.Bars {
+		for _, b := range bars {
 			data = append(data, indapi.CandleData{
 				Timestamp:  b.Timestamp,
 				OpenPrice:  b.Open,
@@ -636,12 +666,10 @@ func (rq *alpacaBroker) querySymbolCandles(ctx context.Context, entry stockval.A
 			})
 		}
 
-		hasNextPage = stockBars.NextPageToken != nil && *stockBars.NextPageToken != ""
+		hasNextPage = assetBars.NextPageToken != nil && *assetBars.NextPageToken != ""
 		if hasNextPage {
-			nextPageToken = *stockBars.NextPageToken
+			nextPageToken = *assetBars.NextPageToken
 		}
-
-		resp.Body.Close()
 	}
 	return stockapi.QueryCandlesResponse{
 		Figi:       entry.Figi,
