@@ -43,6 +43,7 @@ type SearchField struct {
 	firstVisibleIndex        int
 	lastVisibleIndex         int
 	focusHandled             bool
+	nextFrameExpanded        bool
 }
 
 func NewSearchField(text string) *SearchField {
@@ -318,10 +319,8 @@ func (f *SearchField) Layout(gtx layout.Context, th *material.Theme, pth *PlotTh
 		}),
 	}
 
-	expanded := gtx.Focused(&f.textField.Editor) && len(f.items) > 0
-
 	var macro op.MacroOp
-	if expanded {
+	if f.nextFrameExpanded {
 		macro = op.Record(gtx.Ops)
 		layout.Flex{
 			Axis: layout.Vertical,
@@ -337,9 +336,10 @@ func (f *SearchField) Layout(gtx layout.Context, th *material.Theme, pth *PlotTh
 			flexChildren[0:1]...,
 		)
 	}
-	if expanded {
+	if f.nextFrameExpanded {
 		op.Defer(gtx.Ops, macro.Stop())
 	}
+	f.nextFrameExpanded = gtx.Focused(&f.textField.Editor) && len(f.items) > 0
 	f.nextItemsMutex.Lock()
 	if f.nextItems != nil {
 		f.items = f.nextItems
