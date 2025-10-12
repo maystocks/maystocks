@@ -4,6 +4,7 @@
 package widgets
 
 import (
+	"gioui.org/io/key"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/widget"
@@ -59,10 +60,16 @@ func (d *DropDown) Layout(th *material.Theme, gtx layout.Context) layout.Dimensi
 			d.toggled = false
 		}
 		d.menu.Options = append(d.menu.Options, component.MenuItem(th, m.ItemButton, m.Text).Layout)
-		gtx.Execute(op.InvalidateCmd{})
+		//		gtx.Execute(op.InvalidateCmd{})
 	}
 	if d.button.Clicked(gtx) {
+		gtx.Execute(key.FocusCmd{Tag: &d.button})
 		d.toggled = !d.toggled
+	} else {
+		focused := gtx.Focused(&d.button)
+		if !focused {
+			d.toggled = false
+		}
 	}
 
 	var buttonDims layout.Dimensions
@@ -86,11 +93,7 @@ func (d *DropDown) Layout(th *material.Theme, gtx layout.Context) layout.Dimensi
 				}),
 			)
 		})}
-	focused := gtx.Focused(&d.button)
-	if !focused {
-		d.toggled = false
-	}
-	expanded := focused && d.toggled && len(d.items) > 0
+	expanded := d.toggled && len(d.items) > 0
 
 	var macro op.MacroOp
 	if expanded {
