@@ -38,7 +38,6 @@ type ConfigView struct {
 	buttonClose     widget.Clickable
 	confirmed       bool
 	Margin          unit.Dp
-	ppHash          string
 	paHash          string
 	configChildren  []layout.FlexChild
 	brokerConfig    []BrokerView
@@ -249,7 +248,7 @@ func (v *ConfigView) Layout(th *material.Theme, gtx layout.Context) layout.Dimen
 				layout.Rigid(subHeading(th, "(changes require restart)").Layout),
 			)
 			for i := range v.brokerConfig {
-				v.configChildren = v.appendBrokerLayout(th, gtx, &v.brokerConfig[i], v.configChildren)
+				v.configChildren = v.appendBrokerLayout(th, &v.brokerConfig[i], v.configChildren)
 			}
 			v.configChildren = append(v.configChildren,
 				layout.Rigid(divider(th, v.Margin).Layout),
@@ -288,7 +287,7 @@ func (v *ConfigView) validate() bool {
 	return hasValidBroker
 }
 
-func (v *ConfigView) appendBrokerLayout(th *material.Theme, gtx layout.Context, b *BrokerView, children []layout.FlexChild) []layout.FlexChild {
+func (v *ConfigView) appendBrokerLayout(th *material.Theme, b *BrokerView, children []layout.FlexChild) []layout.FlexChild {
 	children = append(children, layout.Rigid(divider(th, v.Margin).Layout))
 	children = append(children,
 		v.linkChild(th, &b.registrationLink, ""))

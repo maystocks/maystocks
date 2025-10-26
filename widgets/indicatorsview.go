@@ -189,13 +189,11 @@ func (v *IndicatorsView) Layout(th *material.Theme, gtx layout.Context, plotInde
 			for i := range v.indicatorConfig[plotIndex] {
 				v.configChildren = v.appendIndicatorLayout(
 					th,
-					gtx,
 					v.indicatorConfigChild(th, &v.indicatorConfig[plotIndex][i]),
 					v.configChildren)
 			}
 			v.configChildren = v.appendIndicatorLayout(
 				th,
-				gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{}.Layout(gtx,
 						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
@@ -269,8 +267,6 @@ func (v *IndicatorsView) validate(plotIndex int) bool {
 
 func (v *IndicatorsView) layoutConfigEntry(th *material.Theme, gtx layout.Context, ind *IndicatorView, w layout.Widget) layout.Dimensions {
 	return layoutLeftRightWidgets(
-		th,
-		v.Margin,
 		gtx,
 		func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Spacing: layout.SpaceStart, Alignment: layout.Middle}.Layout(gtx,
@@ -302,7 +298,7 @@ func (v *IndicatorsView) layoutConfigEntry(th *material.Theme, gtx layout.Contex
 	)
 }
 
-func (v *IndicatorsView) appendIndicatorLayout(th *material.Theme, gtx layout.Context, configChild layout.FlexChild, children []layout.FlexChild) []layout.FlexChild {
+func (v *IndicatorsView) appendIndicatorLayout(th *material.Theme, configChild layout.FlexChild, children []layout.FlexChild) []layout.FlexChild {
 	children = append(children, layout.Rigid(divider(th, v.Margin).Layout))
 	children = append(children, configChild)
 	return children

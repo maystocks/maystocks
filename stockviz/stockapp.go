@@ -26,7 +26,6 @@ import (
 	"github.com/zhangyunhao116/skipmap"
 
 	"gioui.org/app"
-	"gioui.org/io/system"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/paint"
@@ -123,10 +122,10 @@ func (a *StockApp) Initialize(ctx context.Context, svr map[stockval.BrokerId]sto
 	for name, r := range a.broker {
 		p := &BrokerData{
 			// TODO size of buffered channels?
-			dataRequestChan:   make(chan stockapi.SubscribeDataRequest, 10),
-			dataResponseChan:  make(chan stockapi.SubscribeDataResponse, 10),
-			tradeRequestChan:  make(chan stockapi.TradeRequest, 10),
-			tradeResponseChan: make(chan stockapi.TradeResponse, 10),
+			dataRequestChan:   make(chan stockapi.SubscribeDataRequest, 16),
+			dataResponseChan:  make(chan stockapi.SubscribeDataResponse, 16),
+			tradeRequestChan:  make(chan stockapi.TradeRequest, 8),
+			tradeResponseChan: make(chan stockapi.TradeResponse, 8),
 			stockMap:          skipmap.NewString[PriceData](),
 		}
 		a.brokerData[name] = p
@@ -412,25 +411,18 @@ func (a *StockApp) createWindows() {
 	a.windows[0].win.Option(
 		app.Title(a.config.GetAppName()),
 		app.Size(size.X, size.Y),
-		// Not working on mac: app.Maximized.Option(),
+		app.Maximized.Option(),
 	)
 }
 
 func (a *StockApp) handleEvents(ctx context.Context) error {
 	var ops op.Ops
-	firstFrame := true
 	// TODO support multiple windows
 	for {
 		event := a.windows[0].win.Event()
 		giohyperlink.ListenEvents(event)
 		switch e := event.(type) {
 		case app.FrameEvent:
-			if firstFrame {
-				// Maximize does not work during window creation on MacOS.
-				// Therefore it is executed in first frame.
-				a.windows[0].win.Perform(system.ActionMaximize)
-				firstFrame = false
-			}
 			gtx := app.NewContext(&ops, e)
 			paint.Fill(gtx.Ops, a.matTheme.Bg)
 			switch a.uiState {
@@ -450,6 +442,11 @@ func (a *StockApp) handleEvents(ctx context.Context) error {
 				}
 			}
 			e.Frame(gtx.Ops)
+		case app.ConfigEvent:
+			err := a.saveConfiguration()
+			if err != nil {
+				log.Printf("error saving configuration: %v", err)
+			}
 		case app.DestroyEvent:
 			return e.Err
 		}
@@ -547,10 +544,6 @@ func (a *StockApp) layoutPlots(ctx context.Context, gtx layout.Context) {
 }
 
 func (a *StockApp) terminate() {
-	err := a.saveConfiguration()
-	if err != nil {
-		log.Printf("error saving configuration: %v", err)
-	}
 	a.terminateTimerChan <- struct{}{}
 	close(a.terminateTimerChan)
 	for _, p := range a.brokerData {

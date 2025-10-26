@@ -37,7 +37,7 @@ func divider(th *material.Theme, margin unit.Dp) component.DividerStyle {
 	}
 }
 
-func layoutLeftRightWidgets(th *material.Theme, margin unit.Dp, gtx layout.Context, left layout.Widget, right layout.Widget) layout.Dimensions {
+func layoutLeftRightWidgets(gtx layout.Context, left layout.Widget, right layout.Widget) layout.Dimensions {
 	return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 		layout.Flexed(0.5, left),
 		layout.Flexed(0.5, right),
@@ -46,8 +46,6 @@ func layoutLeftRightWidgets(th *material.Theme, margin unit.Dp, gtx layout.Conte
 
 func layoutLabelWidget(th *material.Theme, margin unit.Dp, gtx layout.Context, text string, w layout.Widget) layout.Dimensions {
 	return layoutLeftRightWidgets(
-		th,
-		margin,
 		gtx,
 		func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Spacing: layout.SpaceStart}.Layout(gtx,
