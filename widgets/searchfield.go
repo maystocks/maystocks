@@ -267,6 +267,7 @@ func (f *SearchField) Layout(gtx layout.Context, th *material.Theme, pth *PlotTh
 							if item.click.Hovered() && index != f.lastHoveredIndex {
 								f.selectedIndex = index
 								f.lastHoveredIndex = index
+								gtx.Execute(op.InvalidateCmd{})
 							}
 							if item.click.Pressed() && index != f.lastClickedIndex {
 								f.lastClickedIndex = index
@@ -274,6 +275,7 @@ func (f *SearchField) Layout(gtx layout.Context, th *material.Theme, pth *PlotTh
 								f.lastHoveredIndex = index
 								f.updateTextFromSelection()
 								f.submitText(f.textField.Text())
+								gtx.Execute(op.InvalidateCmd{})
 							}
 							isSelected := index == f.selectedIndex
 							return item.click.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
