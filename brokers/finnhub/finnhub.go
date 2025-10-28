@@ -334,7 +334,7 @@ func (rq *finnhubBroker) FindAsset(ctx context.Context, entry <-chan stockapi.Se
 }
 
 func (rq *finnhubBroker) queryAsset(ctx context.Context, symbols cache.AssetList, entry stockapi.SearchRequest) stockapi.SearchResponse {
-	assetList := symbols.Find(entry.Text, entry.MaxNumResults)
+	assetList := symbols.Find(entry.Text, entry.MaxNumResults, entry.UnambiguousLookup)
 	responseData := stockapi.SearchResponse{
 		SearchRequest: entry,
 		Result:        assetList,

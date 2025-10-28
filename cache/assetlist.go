@@ -19,18 +19,23 @@ func (x AssetList) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
 // Symbol prefix matches are next
 // Company name prefix matches are next
 // Company name substring matches are last
-func (l AssetList) Find(t string, maxNum int) AssetList {
+func (l AssetList) Find(t string, maxNum int, unambiguousLookup bool) AssetList {
 	if len(t) == 0 {
 		return AssetList{}
 	}
 	t = stockval.NormalizeAssetName(t)
+	var result AssetList
 	// Exact id matches
 	for _, a := range l {
 		if a.Symbol == t || a.Figi == t {
-			return AssetList{a} // abort on exact match
+			// exact match should be first result
+			result = AssetList{a}
+			break
 		}
 	}
-	var result AssetList
+	if unambiguousLookup {
+		return result
+	}
 	// Symbol prefix matches
 	for _, a := range l {
 		if strings.HasPrefix(a.Symbol, t) {
