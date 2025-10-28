@@ -2,8 +2,6 @@ module maystocks
 
 go 1.24.0
 
-toolchain go1.24.5
-
 require (
 	github.com/inkeliz/giohyperlink v0.0.0-20220903215451-2ac5d54abdce
 	golang.org/x/exp v0.0.0-20251009144603-d2f985daa21b
@@ -13,7 +11,7 @@ require (
 require (
 	gioui.org/shader v1.0.8 // indirect
 	git.wow.st/gmp/jni v0.0.0-20210610011705-34026c7e22d0 // indirect
-	github.com/andybalholm/stroke v0.0.0-20230904101225-24ef450bc62c // indirect
+	github.com/andybalholm/stroke v0.0.0-20251027184313-5126dd7227a1 // indirect
 	github.com/go-text/typesetting v0.3.0 // indirect
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/zhangyunhao116/fastrand v0.5.0 // indirect

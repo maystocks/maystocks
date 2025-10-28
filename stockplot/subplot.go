@@ -746,11 +746,8 @@ func (sub *SubPlot) plotQuoteLine(quote stockval.QuoteData, gtx layout.Context, 
 
 	// Plot a dotted line.
 	p, _ := quote.CurrentPrice.Float64()
+	// yPos may not be scaled yet, but that's fine because https://github.com/andybalholm/stroke/issues/7 was fixed.
 	yPos := sub.frame.projection.getYpos(p)
-	// yPos may not be scaled yet, and Stroke cannot handle large numbers.
-	if math.Abs(yPos) > float64(clipRect.Max.Y*2) {
-		return
-	}
 
 	var quotePath stroke.Path
 	quotePath.Segments = []stroke.Segment{
