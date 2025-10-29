@@ -316,9 +316,10 @@ func (plot *Plot) handleInput(gtx layout.Context) {
 			continue
 		}
 		// X axis zooming
-		if ev.Kind == pointer.Press {
+		switch ev.Kind {
+		case pointer.Press:
 			plot.pointerPressPos = ev.Position // TODO maybe support multiple pointers
-		} else if ev.Kind == pointer.Drag {
+		case pointer.Drag:
 			posDelta := plot.pointerPressPos.Sub(ev.Position)
 			dpDelta := gtx.Metric.PxToDp(int(posDelta.X)) / 5
 			if dpDelta != 0 {
@@ -357,9 +358,10 @@ func (plot *Plot) handleInput(gtx layout.Context) {
 				continue
 			}
 			plot.requestFocus = true
-			if ev.Kind == pointer.Press {
+			switch ev.Kind {
+			case pointer.Press:
 				plot.pointerPressPos = ev.Position
-			} else if ev.Kind == pointer.Drag {
+			case pointer.Drag:
 				posDelta := plot.pointerPressPos.Sub(ev.Position)
 				plot.zeroValueX += plot.valueGridX / float64(plot.frame.pxGridX) * float64(posDelta.X)
 				if !s.fixedZeroValueY {
@@ -369,7 +371,7 @@ func (plot *Plot) handleInput(gtx layout.Context) {
 					}
 				}
 				plot.pointerPressPos = ev.Position
-			} else if ev.Kind == pointer.Scroll {
+			case pointer.Scroll:
 				var zoom unit.Dp
 				if ev.Scroll.Y < 0 {
 					zoom = -10
@@ -405,9 +407,10 @@ func (plot *Plot) handleInput(gtx layout.Context) {
 				continue
 			}
 			plot.requestFocus = true
-			if ev.Kind == pointer.Press {
+			switch ev.Kind {
+			case pointer.Press:
 				plot.pointerPressPos = ev.Position
-			} else if ev.Kind == pointer.Drag {
+			case pointer.Drag:
 				posDelta := plot.pointerPressPos.Sub(ev.Position)
 				s.gridY += gtx.Metric.PxToDp(int(posDelta.Y)) / 2
 				if s.gridY < MinGridDp {

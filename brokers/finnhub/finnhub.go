@@ -318,7 +318,7 @@ func (rq *finnhubBroker) FindAsset(ctx context.Context, entry <-chan stockapi.Se
 			// We use openfigi to find data for isin values.
 			req := entry
 			req.UnambiguousLookup = true
-			figiRequestChan <- entry
+			figiRequestChan <- req
 			figiResponseData := <-figiResponseChan
 			if figiResponseData.Error == nil && len(figiResponseData.Result) == 1 {
 				// Continue lookup using the symbol.

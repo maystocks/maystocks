@@ -393,16 +393,17 @@ func (rq *alpacaBroker) RemainingApiLimit() int {
 func (rq *alpacaBroker) createRequest(ctx context.Context, cmd string, body io.Reader, t requestType) (*http.Request, error) {
 	var url string
 	var method string
-	if t == requestTypeTradingGet {
+	switch t {
+	case requestTypeTradingGet:
 		url = rq.config.PaperTradingUrl
 		method = "GET"
-	} else if t == requestTypeTradingPost {
+	case requestTypeTradingPost:
 		url = rq.config.PaperTradingUrl
 		method = "POST"
-	} else if t == requestTypeCryptoData {
+	case requestTypeCryptoData:
 		url = rq.config.CryptoDataUrl + "/crypto/us"
 		method = "GET"
-	} else {
+	default:
 		url = rq.config.DataUrl + "/stocks"
 		method = "GET"
 	}
@@ -502,7 +503,7 @@ func (rq *alpacaBroker) FindAsset(ctx context.Context, entry <-chan stockapi.Sea
 			// We use openfigi to find data for isin values.
 			req := entry
 			req.UnambiguousLookup = true
-			figiRequestChan <- entry
+			figiRequestChan <- req
 			figiResponseData := <-figiResponseChan
 			if figiResponseData.Error == nil && len(figiResponseData.Result) == 1 {
 				// Continue lookup using the symbol.
@@ -743,7 +744,8 @@ func (rq *alpacaBroker) handleRealtimeData() {
 			if data[i].Timestamp.Before(time.Now().Add(-time.Minute)) {
 				rq.logger.Printf("Symbol %s: Old realtime data received.", data[i].Symbol)
 			}
-			if data[i].Type == messageTypeTrade {
+			switch data[i].Type {
+			case messageTypeTrade:
 				// Default: Normal trade.
 				tradeContext := stockval.NewTradeContext()
 				if data[i].Cond != nil {
@@ -770,7 +772,7 @@ func (rq *alpacaBroker) handleRealtimeData() {
 				if err != nil {
 					rq.logger.Println(err)
 				}
-			} else if data[i].Type == messageTypeQuote {
+			case messageTypeQuote:
 				bidAskData := stockval.RealtimeBidAskData{
 					Timestamp: data[i].Timestamp,
 					BidPrice:  data[i].BidPrice,

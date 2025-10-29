@@ -385,7 +385,8 @@ func webSocketHandler(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
 			break
 		}
-		if cmd.Action == "auth" {
+		switch cmd.Action {
+		case "auth":
 			connectedMsg := []realtimeMessage{
 				{
 					Type: messageTypeSuccess,
@@ -394,7 +395,7 @@ func webSocketHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			connMsg, _ := json.Marshal(connectedMsg)
 			_ = conn.WriteMessage(int(websocket.TextMessage), connMsg)
-		} else if cmd.Action == "subscribe" {
+		case "subscribe":
 			for _, symbol := range cmd.Trades {
 				// send a realtime message as response to a trades subscription request
 				data := []realtimeMessage{
