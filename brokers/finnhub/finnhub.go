@@ -507,9 +507,10 @@ func (rq *finnhubBroker) SubscribeData(ctx context.Context, request <-chan stock
 	defer close(response)
 	for entry := range request {
 		var err error
+		isFirstRequest := rq.realtimeConn == nil
 		// connect whenever we receive a first subscription message.
 		// this avoids establishing a realtime connection to brokers which are not used.
-		if rq.realtimeConn == nil {
+		if isFirstRequest {
 			err = rq.initRealtimeConnection(ctx)
 			if err != nil {
 				response <- stockapi.SubscribeDataResponse{
@@ -520,7 +521,6 @@ func (rq *finnhubBroker) SubscribeData(ctx context.Context, request <-chan stock
 				<-time.After(webclient.MinReconnectWaitTime)
 				continue
 			}
-			go rq.handleRealtimeData()
 		}
 
 		if len(entry.Asset.Symbol) == 0 {
@@ -558,6 +558,10 @@ func (rq *finnhubBroker) SubscribeData(ctx context.Context, request <-chan stock
 			Error:    err,
 			Type:     entry.Type,
 			TickData: tickData,
+		}
+		if isFirstRequest {
+			// Start sending tick data after first response.
+			go rq.handleRealtimeData()
 		}
 	}
 	if rq.realtimeConn != nil {

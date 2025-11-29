@@ -38,7 +38,7 @@ func TestQueryQuote(t *testing.T) {
 	isin <- stockval.AssetData{Figi: testFigi, Isin: testIsin, Symbol: testSymbol}
 	responseData := <-response
 	assert.Equal(t, testFigi, responseData.Figi)
-	assert.Nil(t, responseData.Error)
+	assert.NoError(t, responseData.Error)
 	assert.Equal(t, 0, decimal.New(12591, 2).CmpTotal(responseData.CurrentPrice))
 	assert.Equal(t, 0, decimal.New(12685, 2).CmpTotal(responseData.PreviousClosePrice))
 	assert.Equal(t, 0, decimal.New(-74, 2).CmpTotal(stockval.RoundPercentage(responseData.DeltaPercentage)))
@@ -63,7 +63,7 @@ func TestQueryCandles(t *testing.T) {
 	responseData := <-response
 	assert.Equal(t, testFigi, responseData.Figi)
 	assert.Equal(t, candles.CandleOneMinute, responseData.Resolution)
-	assert.Nil(t, responseData.Error)
+	assert.NoError(t, responseData.Error)
 	data := []indapi.CandleData{
 		{
 			Timestamp:  time.Unix(1649664000, 0).UTC(),
@@ -110,7 +110,7 @@ func TestSubscribeData(t *testing.T) {
 	responseData := <-response
 	assert.Equal(t, testFigi, responseData.Figi)
 	assert.Equal(t, stockapi.RealtimeTradesSubscribe, responseData.Type)
-	assert.Nil(t, responseData.Error)
+	assert.NoError(t, responseData.Error)
 }
 
 func TestSubscribeDataError(t *testing.T) {
@@ -144,7 +144,7 @@ func TestSubscribeDataRealtime(t *testing.T) {
 		Type:  stockapi.RealtimeTradesSubscribe,
 	}
 	responseData := <-response
-	assert.Nil(t, responseData.Error)
+	assert.NoError(t, responseData.Error)
 	assert.NotNil(t, responseData.TickData)
 	tickData := <-responseData.TickData
 	assert.NotNil(t, tickData.Price)
@@ -171,7 +171,7 @@ func TestFindAsset(t *testing.T) {
 	}
 	responseData := <-response
 	assert.Equal(t, testFigi, responseData.RequestId)
-	assert.Nil(t, responseData.Error)
+	assert.NoError(t, responseData.Error)
 	assert.Equal(t, 1, len(responseData.Result))
 }
 

@@ -22,6 +22,6 @@ func NewAssetCache(t *testing.T) cache.AssetCache {
 
 func (c *TestAssetCache) GetAssetList(ctx context.Context, req func(ctx context.Context) ([]stockval.AssetData, error)) cache.AssetList {
 	d, err := req(ctx)
-	assert.Nil(c.t, err)
+	assert.NoError(c.t, err)
 	return d
 }

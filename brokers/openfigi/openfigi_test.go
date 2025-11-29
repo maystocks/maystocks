@@ -17,7 +17,6 @@ import (
 )
 
 const testFigi = "BBG000BVPV84"
-const testIsin = "US0231351067"
 const testSymbol = "AMZN"
 
 func TestFindAssetByMapping(t *testing.T) {
@@ -38,7 +37,7 @@ func TestFindAssetByMapping(t *testing.T) {
 	}
 	responseData := <-response
 	assert.Equal(t, testFigi, responseData.RequestId)
-	assert.Nil(t, responseData.Error)
+	assert.NoError(t, responseData.Error)
 	assert.Equal(t, 1, len(responseData.Result))
 }
 
@@ -82,7 +81,7 @@ func TestFindAssetBySearch(t *testing.T) {
 	}
 	responseData := <-response
 	assert.Equal(t, testFigi, responseData.RequestId)
-	assert.Nil(t, responseData.Error)
+	assert.NoError(t, responseData.Error)
 	assert.Equal(t, 1, len(responseData.Result))
 }
 
