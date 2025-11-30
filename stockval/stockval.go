@@ -45,7 +45,7 @@ type PlotScaling struct {
 // Limit display name size
 var displayNameRegex = regexp.MustCompile(`^.{0,48}`)
 
-var alphanumericRegex = regexp.MustCompile(`[^\p{L}\p{N}/ ]+`)
+var alphanumericRegex = regexp.MustCompile(`[^\p{L}\p{N}/ :]+`)
 
 func NormalizeAssetName(n string) string {
 	return strings.TrimSpace(strings.ToUpper(alphanumericRegex.ReplaceAllString(n, "")))
@@ -87,4 +87,12 @@ func IndexOf[T comparable](s []T, e T) int {
 		}
 	}
 	return -1
+}
+
+func ClassToString(c AssetClass) string {
+	if c == AssetClassCrypto {
+		return "Crypto"
+	} else {
+		return "Stock"
+	}
 }

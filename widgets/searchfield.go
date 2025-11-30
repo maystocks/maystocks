@@ -22,6 +22,7 @@ import (
 type SearchFieldItem struct {
 	TitleText string
 	DescText  string
+	Class     string
 	click     widget.Clickable
 }
 
@@ -291,11 +292,19 @@ func (f *SearchField) Layout(gtx layout.Context, th *material.Theme, pth *PlotTh
 								}.Layout(
 									gtx,
 									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+										label := material.Label(th, unit.Sp(10), item.Class)
+										if isSelected {
+											label.Color = pth.HoverTextColor
+										}
+										return label.Layout(gtx)
+									}),
+									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 										label := material.Label(th, unit.Sp(24), item.TitleText)
 										if isSelected {
 											label.Color = pth.HoverTextColor
 										}
 										return label.Layout(gtx)
+
 									}),
 									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 										label := material.Label(th, unit.Sp(18), item.DescText)
@@ -303,7 +312,9 @@ func (f *SearchField) Layout(gtx layout.Context, th *material.Theme, pth *PlotTh
 											label.Color = pth.HoverTextColor
 										}
 										return label.Layout(gtx)
-									}))
+									}),
+									layout.Rigid(divider(th, 1).Layout),
+								)
 								if nextMinItemSizeX < dims.Size.X {
 									nextMinItemSizeX = dims.Size.X
 								}

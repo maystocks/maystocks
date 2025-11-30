@@ -183,6 +183,7 @@ func (v *PlotView) handleSearchResult(ctx context.Context) {
 			for i, r := range searchResponse.Result {
 				items[i] = widgets.SearchFieldItem{
 					TitleText: r.Symbol,
+					Class:     stockval.ClassToString(r.Class),
 					DescText:  r.CompanyName,
 				}
 			}
