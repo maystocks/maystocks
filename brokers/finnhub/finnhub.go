@@ -404,7 +404,13 @@ func (rq *finnhubBroker) querySymbolCandles(ctx context.Context, entry stockval.
 	query.Add("resolution", getCandleResolutionStr(resolution))
 	query.Add("from", fmt.Sprint(fromTime.Unix()))
 	query.Add("to", fmt.Sprint(toTime.Unix()))
-	resp, err := rq.runRequest(ctx, "/stock/candle", query)
+	var requestCmd string
+	if entry.Class == stockval.AssetClassCrypto {
+		requestCmd = "/crypto/candle"
+	} else {
+		requestCmd = "/stock/candle"
+	}
+	resp, err := rq.runRequest(ctx, requestCmd, query)
 	if err != nil {
 		return stockapi.QueryCandlesResponse{Figi: entry.Figi, Resolution: resolution, Error: err}
 	}
