@@ -84,10 +84,13 @@ func GetMinColors(c []color.NRGBA, numColors int) []color.NRGBA {
 }
 
 func GetNormalisedColors(c []color.NRGBA, def color.NRGBA) []color.NRGBA {
+	nc := make([]color.NRGBA, len(c))
 	for i := range c {
 		if empty := (color.NRGBA{}); c[i] == empty {
-			c[i] = def
+			nc[i] = def
+		} else {
+			nc[i] = c[i]
 		}
 	}
-	return c
+	return nc
 }
