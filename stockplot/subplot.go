@@ -324,16 +324,12 @@ func (sub *SubPlot) plotLineSegment(t time.Time, value float64, r candles.Candle
 			// but we are filtering here to avoid allocations in case there is a lot of data.
 			if !((xPosI < clipRect.Min.X && *pxPosI < clipRect.Min.X) || (xPosI > clipRect.Max.X && *pxPosI > clipRect.Max.X) ||
 				(yPosI < clipRect.Min.Y && *pyPosI < clipRect.Min.Y) || (yPosI > clipRect.Max.Y && *pyPosI > clipRect.Max.Y)) {
-				// Always move to previous position, because LineTo does not translate to an implicit MoveTo.
-				// If we skip all but the first MoveTo, there are glitches when gio is drawing the line.
-				// See https://todo.sr.ht/~eliasnaur/gio/451
-				path.Segments = append(path.Segments, stroke.MoveTo(f32.Pt(float32(*pxPos), float32(*pyPos))))
 				path.Segments = append(path.Segments, stroke.LineTo(f32.Pt(float32(xPos), float32(yPos))))
 			}
 		}
-	} /*else { uncomment if https://todo.sr.ht/~eliasnaur/gio/451 is fixed
+	} else {
 		path.Segments = append(path.Segments, stroke.MoveTo(f32.Pt(float32(xPos), float32(yPos))))
-	}*/
+	}
 	*pxPos = xPos
 	*pxPosI = xPosI
 	*pyPos = yPos
