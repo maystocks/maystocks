@@ -41,7 +41,7 @@ func (d *CandleUpdater) Initialize(ctx context.Context, broker stockapi.Broker, 
 	d.candlesResponseChan = make(chan stockapi.QueryCandlesResponse, 128)
 	go func() {
 		for candlesResponseData := range d.candlesResponseChan {
-			log.Printf("Updating candle data %s %d.", candlesResponseData.Figi, candlesResponseData.Resolution)
+			log.Printf("Updating candle data %s %s.", candlesResponseData.Figi, candlesResponseData.Resolution.String())
 			d.CandleData.UpdateConsolidatedCandles(candlesResponseData.Resolution, candlesResponseData.Data)
 			uiUpdater.Invalidate()
 		}
@@ -53,7 +53,7 @@ func (d *CandleUpdater) Initialize(ctx context.Context, broker stockapi.Broker, 
 func (d *CandleUpdater) Refresh() {
 	d.candleTimeMap.Range(
 		func(uiIndex int32, w candleTime) bool {
-			log.Printf("Requesting candle data %s %d.", d.Entry.Figi, d.CandleData.Resolution)
+			log.Printf("Requesting candle data %s %s.", d.Entry.Figi, d.CandleData.Resolution.String())
 			candlesRequestData := stockapi.CandlesRequest{
 				Asset:      d.Entry,
 				Resolution: d.CandleData.Resolution,

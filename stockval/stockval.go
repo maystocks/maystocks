@@ -93,6 +93,6 @@ func ClassToString(c AssetClass) string {
 	if c == AssetClassCrypto {
 		return "Crypto"
 	} else {
-		return "Stock"
+		return "Stocks"
 	}
 }

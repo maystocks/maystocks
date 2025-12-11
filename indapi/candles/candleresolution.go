@@ -29,10 +29,6 @@ func CandleResolutionFromString(s string) CandleResolution {
 	return CandleResolution(r)
 }
 
-func (r CandleResolution) String() string {
-	return strconv.FormatInt(int64(r), 10)
-}
-
 func CandleResolutionUiStringList() []string {
 	return []string{
 		"1 min",
