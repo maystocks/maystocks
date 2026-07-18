@@ -1,6 +1,6 @@
 module maystocks
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/inkeliz/giohyperlink v0.0.0-20220903215451-2ac5d54abdce
@@ -16,8 +16,8 @@ require (
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/zhangyunhao116/fastrand v0.5.0 // indirect
 	golang.org/x/exp/shiny v0.0.0-20251009144603-d2f985daa21b // indirect
-	golang.org/x/sys v0.39.0 // indirect
-	golang.org/x/text v0.32.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 )
 
