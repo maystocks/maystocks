@@ -5,7 +5,7 @@ go 1.24.0
 require (
 	github.com/inkeliz/giohyperlink v0.0.0-20220903215451-2ac5d54abdce
 	golang.org/x/exp v0.0.0-20251009144603-d2f985daa21b
-	golang.org/x/image v0.32.0
+	golang.org/x/image v0.41.0
 )
 
 require (
@@ -35,6 +35,6 @@ require (
 	github.com/rickar/cal/v2 v2.1.25
 	github.com/stretchr/testify v1.11.1
 	github.com/zhangyunhao116/skipmap v0.10.1
-	golang.org/x/crypto v0.46.0
+	golang.org/x/crypto v0.52.0
 	gopkg.in/yaml.v3 v3.0.1
 )
